@@ -1,5 +1,5 @@
 import { Curve } from '../core/Curve.js';
-import { CubicBezier } from '../core/Interpolations.js';
+import { CubicBezier, CubicBezierDer1, CubicBezierDer2 } from '../core/Interpolations.js';
 import { Vector2 } from '../../math/Vector2.js';
 
 /**
@@ -98,6 +98,24 @@ class CubicBezierCurve extends Curve {
 		);
 
 		return point;
+
+	}
+
+	getCurvature( t ) {
+
+		const v0 = this.v0, v1 = this.v1, v2 = this.v2, v3 = this.v3;
+
+		const dx = CubicBezierDer1( t, v0.x, v1.x, v2.x, v3.x );
+		const dy = CubicBezierDer1( t, v0.y, v1.y, v2.y, v3.y );
+		const ddx = CubicBezierDer2( t, v0.x, v1.x, v2.x, v3.x );
+		const ddy = CubicBezierDer2( t, v0.y, v1.y, v2.y, v3.y );
+
+		const speedSq = dx * dx + dy * dy;
+		const speed = Math.sqrt( speedSq );
+
+		if ( speed < 1e-10 ) return 0;
+
+		return ( dx * ddy - dy * ddx ) / ( speedSq * speed );
 
 	}
 

@@ -209,6 +209,19 @@ export default QUnit.module( 'Extras', () => {
 
 			} );
 
+			QUnit.test( 'getCurvature/getTorsion', ( assert ) => {
+
+				const curve = _curve;
+
+				assert.strictEqual( curve.getCurvature( 0 ), 0, 'Curvature at t=0 is 0' );
+				assert.strictEqual( curve.getCurvature( 0.5 ), 0, 'Curvature at t=0.5 is 0' );
+				assert.strictEqual( curve.getCurvature( 1 ), 0, 'Curvature at t=1 is 0' );
+				assert.strictEqual( curve.getTorsion( 0 ), 0, 'Torsion at t=0 is 0' );
+				assert.strictEqual( curve.getTorsion( 0.5 ), 0, 'Torsion at t=0.5 is 0' );
+				assert.strictEqual( curve.getTorsion( 1 ), 0, 'Torsion at t=1 is 0' );
+
+			} );
+
 			QUnit.test( 'getSpacedPoints', ( assert ) => {
 
 				const curve = _curve;

@@ -273,6 +273,19 @@ export default QUnit.module( 'Extras', () => {
 
 			} );
 
+			QUnit.test( 'getCurvature/getTorsion', ( assert ) => {
+
+				// Curvature should be non-zero for a non-degenerate curve
+				const curvature = _curve.getCurvature( 0.5 );
+				assert.ok( curvature > 0, 'Curvature at midpoint is positive' );
+
+				// Quadratic Bezier is always planar, so torsion = 0
+				assert.strictEqual( _curve.getTorsion( 0 ), 0, 'Torsion is 0 at t=0' );
+				assert.strictEqual( _curve.getTorsion( 0.5 ), 0, 'Torsion is 0 at t=0.5' );
+				assert.strictEqual( _curve.getTorsion( 1 ), 0, 'Torsion is 0 at t=1' );
+
+			} );
+
 		} );
 
 	} );

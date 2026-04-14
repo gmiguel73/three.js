@@ -90,6 +90,18 @@ class LineCurve3 extends Curve {
 
 	}
 
+	getCurvature( /* t */ ) {
+
+		return 0;
+
+	}
+
+	getTorsion( /* t */ ) {
+
+		return 0;
+
+	}
+
 	copy( source ) {
 
 		super.copy( source );

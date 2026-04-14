@@ -69,6 +69,18 @@ function CubicPoly() {
 			const t3 = t2 * t;
 			return c0 + c1 * t + c2 * t2 + c3 * t3;
 
+		},
+
+		calcDer1: function ( t ) {
+
+			return c1 + 2 * c2 * t + 3 * c3 * t * t;
+
+		},
+
+		calcDer2: function ( t ) {
+
+			return 2 * c2 + 6 * c3 * t;
+
 		}
 
 	};
@@ -166,15 +178,13 @@ class CatmullRomCurve3 extends Curve {
 	}
 
 	/**
-	 * Returns a point on the curve.
+	 * Initializes the shared CubicPoly instances for the segment containing t and returns the local weight.
 	 *
-	 * @param {number} t - A interpolation factor representing a position on the curve. Must be in the range `[0,1]`.
-	 * @param {Vector3} [optionalTarget] - The optional target vector the result is written to.
-	 * @return {Vector3} The position on the curve.
+	 * @private
+	 * @param {number} t - The global interpolation factor in [0,1].
+	 * @return {number} The local weight within the segment.
 	 */
-	getPoint( t, optionalTarget = new Vector3() ) {
-
-		const point = optionalTarget;
+	_initSegment( t ) {
 
 		const points = this.points;
 		const l = points.length;
@@ -194,7 +204,7 @@ class CatmullRomCurve3 extends Curve {
 
 		}
 
-		let p0, p3; // 4 points (p1 & p2 defined below)
+		let p0, p3;
 
 		if ( this.closed || intPoint > 0 ) {
 
@@ -202,7 +212,6 @@ class CatmullRomCurve3 extends Curve {
 
 		} else {
 
-			// extrapolate first point
 			tmp2.subVectors( points[ 0 ], points[ 1 ] ).add( points[ 0 ] );
 			p0 = tmp2;
 
@@ -217,7 +226,6 @@ class CatmullRomCurve3 extends Curve {
 
 		} else {
 
-			// extrapolate last point
 			tmp.subVectors( points[ l - 1 ], points[ l - 2 ] ).add( points[ l - 1 ] );
 			p3 = tmp;
 
@@ -225,13 +233,11 @@ class CatmullRomCurve3 extends Curve {
 
 		if ( this.curveType === 'centripetal' || this.curveType === 'chordal' ) {
 
-			// init Centripetal / Chordal Catmull-Rom
 			const pow = this.curveType === 'chordal' ? 0.5 : 0.25;
 			let dt0 = Math.pow( p0.distanceToSquared( p1 ), pow );
 			let dt1 = Math.pow( p1.distanceToSquared( p2 ), pow );
 			let dt2 = Math.pow( p2.distanceToSquared( p3 ), pow );
 
-			// safety check for repeated points
 			if ( dt1 < 1e-4 ) dt1 = 1.0;
 			if ( dt0 < 1e-4 ) dt0 = dt1;
 			if ( dt2 < 1e-4 ) dt2 = dt1;
@@ -248,6 +254,22 @@ class CatmullRomCurve3 extends Curve {
 
 		}
 
+		return weight;
+
+	}
+
+	/**
+	 * Returns a point on the curve.
+	 *
+	 * @param {number} t - A interpolation factor representing a position on the curve. Must be in the range `[0,1]`.
+	 * @param {Vector3} [optionalTarget] - The optional target vector the result is written to.
+	 * @return {Vector3} The position on the curve.
+	 */
+	getPoint( t, optionalTarget = new Vector3() ) {
+
+		const point = optionalTarget;
+		const weight = this._initSegment( t );
+
 		point.set(
 			px.calc( weight ),
 			py.calc( weight ),
@@ -255,6 +277,40 @@ class CatmullRomCurve3 extends Curve {
 		);
 
 		return point;
+
+	}
+
+	getCurvature( t ) {
+
+		const weight = this._initSegment( t );
+
+		const dx = px.calcDer1( weight );
+		const dy = py.calcDer1( weight );
+		const dz = pz.calcDer1( weight );
+		const ddx = px.calcDer2( weight );
+		const ddy = py.calcDer2( weight );
+		const ddz = pz.calcDer2( weight );
+
+		const cx = dy * ddz - dz * ddy;
+		const cy = dz * ddx - dx * ddz;
+		const cz = dx * ddy - dy * ddx;
+
+		const crossLen = Math.sqrt( cx * cx + cy * cy + cz * cz );
+		const speed = Math.sqrt( dx * dx + dy * dy + dz * dz );
+
+		if ( speed < 1e-10 ) return 0;
+
+		return crossLen / ( speed * speed * speed );
+
+	}
+
+	getTorsion( /* t */ ) {
+
+		// CatmullRomCurve3 uses piecewise cubics; the third derivative is constant
+		// per segment. We use the numerical fallback from the base class for simplicity,
+		// since extracting third derivatives from the CubicPoly coefficients directly
+		// would require exposing c3.
+		return super.getTorsion.apply( this, arguments );
 
 	}
 

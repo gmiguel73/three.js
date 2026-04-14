@@ -208,6 +208,28 @@ export default QUnit.module( 'Extras', () => {
 
 			} );
 
+			QUnit.test( 'getCurvature', ( assert ) => {
+
+				// For a circle of radius 10, curvature should be 1/10 = 0.1 everywhere
+				// The default curve is a circle (xRadius === yRadius === 10)
+				const circleCurvature = 1 / 10;
+
+				assert.numEqual( curve.getCurvature( 0 ), circleCurvature, 'Circle curvature at t=0 correct' );
+				assert.numEqual( curve.getCurvature( 0.25 ), circleCurvature, 'Circle curvature at t=0.25 correct' );
+				assert.numEqual( curve.getCurvature( 0.5 ), circleCurvature, 'Circle curvature at t=0.5 correct' );
+				assert.numEqual( curve.getCurvature( 0.75 ), circleCurvature, 'Circle curvature at t=0.75 correct' );
+
+				// Ellipse with different radii
+				const ellipse = new EllipseCurve( 0, 0, 10, 5, 0, 2 * Math.PI, false, 0 );
+
+				// At t=0 (angle=0): curvature = 50/125 = 0.4
+				assert.numEqual( ellipse.getCurvature( 0 ), 0.4, 'Ellipse curvature at t=0 correct' );
+
+				// At t=0.25 (angle=pi/2): curvature = 50/1000 = 0.05
+				assert.numEqual( ellipse.getCurvature( 0.25 ), 0.05, 'Ellipse curvature at t=0.25 correct' );
+
+			} );
+
 		} );
 
 	} );

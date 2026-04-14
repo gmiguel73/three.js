@@ -190,6 +190,53 @@ class EllipseCurve extends Curve {
 
 	}
 
+	getCurvature( t ) {
+
+		const twoPi = Math.PI * 2;
+		let deltaAngle = this.aEndAngle - this.aStartAngle;
+		const samePoints = Math.abs( deltaAngle ) < Number.EPSILON;
+
+		while ( deltaAngle < 0 ) deltaAngle += twoPi;
+		while ( deltaAngle > twoPi ) deltaAngle -= twoPi;
+
+		if ( deltaAngle < Number.EPSILON ) {
+
+			deltaAngle = samePoints ? 0 : twoPi;
+
+		}
+
+		if ( this.aClockwise === true && ! samePoints ) {
+
+			deltaAngle = deltaAngle === twoPi ? - twoPi : deltaAngle - twoPi;
+
+		}
+
+		const angle = this.aStartAngle + t * deltaAngle;
+		const a = this.xRadius;
+		const b = this.yRadius;
+
+		// Derivatives with respect to angle parameter
+		// x(angle) = a*cos(angle), y(angle) = b*sin(angle) (before rotation, relative to center)
+		const sinA = Math.sin( angle );
+		const cosA = Math.cos( angle );
+
+		const dx = - a * sinA;
+		const dy = b * cosA;
+		const ddx = - a * cosA;
+		const ddy = - b * sinA;
+
+		// Curvature of parametric ellipse: (dx*ddy - dy*ddx) / (dx^2 + dy^2)^(3/2)
+		// Rotation does not affect curvature (it is an isometry)
+		const speedSq = dx * dx + dy * dy;
+		const speed = Math.sqrt( speedSq );
+
+		if ( speed < 1e-10 ) return 0;
+
+		// Signed curvature; deltaAngle sign determines winding direction
+		return ( dx * ddy - dy * ddx ) / ( speedSq * speed );
+
+	}
+
 	copy( source ) {
 
 		super.copy( source );

@@ -61,6 +61,25 @@ export default QUnit.module( 'Extras', () => {
 
 			} );
 
+			QUnit.test( 'getCurvature/getTorsion', ( assert ) => {
+
+				const curvature = _nurbsCurve.getCurvature( 0.5 );
+				assert.ok( typeof curvature === 'number' && isFinite( curvature ), 'Curvature at midpoint is finite' );
+				assert.ok( curvature >= 0, 'Curvature is non-negative' );
+
+				const torsion = _nurbsCurve.getTorsion( 0.5 );
+				assert.ok( typeof torsion === 'number' && isFinite( torsion ), 'Torsion at midpoint is finite' );
+
+				// Straight line NURBS should have zero curvature
+				const straightNurbs = new NURBSCurve(
+					1,
+					[ 0, 0, 1, 1 ],
+					[ new Vector4( 0, 0, 0, 1 ), new Vector4( 10, 0, 0, 1 ) ]
+				);
+				assert.ok( Math.abs( straightNurbs.getCurvature( 0.5 ) ) < 1e-6, 'Straight NURBS has zero curvature' );
+
+			} );
+
 		} );
 
 	} );

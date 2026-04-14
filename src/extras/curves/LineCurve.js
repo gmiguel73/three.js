@@ -90,6 +90,12 @@ class LineCurve extends Curve {
 
 	}
 
+	getCurvature( /* t */ ) {
+
+		return 0;
+
+	}
+
 	copy( source ) {
 
 		super.copy( source );

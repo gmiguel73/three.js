@@ -235,6 +235,22 @@ export default QUnit.module( 'Extras', () => {
 
 			} );
 
+			QUnit.test( 'getCurvature', ( assert ) => {
+
+				// Verify curvature is non-zero for a curved path
+				const curvature = _curve.getCurvature( 0.5 );
+				assert.ok( curvature !== 0, 'Curvature at midpoint is non-zero' );
+
+				// Straight line quadratic Bezier should have zero curvature
+				const straightCurve = new QuadraticBezierCurve(
+					new Vector2( 0, 0 ),
+					new Vector2( 5, 5 ),
+					new Vector2( 10, 10 )
+				);
+				assert.numEqual( straightCurve.getCurvature( 0.5 ), 0, 'Collinear points give zero curvature' );
+
+			} );
+
 		} );
 
 	} );

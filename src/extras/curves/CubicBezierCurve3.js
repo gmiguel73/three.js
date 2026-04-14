@@ -1,5 +1,5 @@
 import { Curve } from '../core/Curve.js';
-import { CubicBezier } from '../core/Interpolations.js';
+import { CubicBezier, CubicBezierDer1, CubicBezierDer2, CubicBezierDer3 } from '../core/Interpolations.js';
 import { Vector3 } from '../../math/Vector3.js';
 
 /**
@@ -82,6 +82,56 @@ class CubicBezierCurve3 extends Curve {
 		);
 
 		return point;
+
+	}
+
+	getCurvature( t ) {
+
+		const v0 = this.v0, v1 = this.v1, v2 = this.v2, v3 = this.v3;
+
+		const dx = CubicBezierDer1( t, v0.x, v1.x, v2.x, v3.x );
+		const dy = CubicBezierDer1( t, v0.y, v1.y, v2.y, v3.y );
+		const dz = CubicBezierDer1( t, v0.z, v1.z, v2.z, v3.z );
+		const ddx = CubicBezierDer2( t, v0.x, v1.x, v2.x, v3.x );
+		const ddy = CubicBezierDer2( t, v0.y, v1.y, v2.y, v3.y );
+		const ddz = CubicBezierDer2( t, v0.z, v1.z, v2.z, v3.z );
+
+		const cx = dy * ddz - dz * ddy;
+		const cy = dz * ddx - dx * ddz;
+		const cz = dx * ddy - dy * ddx;
+
+		const crossLen = Math.sqrt( cx * cx + cy * cy + cz * cz );
+		const speed = Math.sqrt( dx * dx + dy * dy + dz * dz );
+
+		if ( speed < 1e-10 ) return 0;
+
+		return crossLen / ( speed * speed * speed );
+
+	}
+
+	getTorsion( t ) {
+
+		const v0 = this.v0, v1 = this.v1, v2 = this.v2, v3 = this.v3;
+
+		const dx = CubicBezierDer1( t, v0.x, v1.x, v2.x, v3.x );
+		const dy = CubicBezierDer1( t, v0.y, v1.y, v2.y, v3.y );
+		const dz = CubicBezierDer1( t, v0.z, v1.z, v2.z, v3.z );
+		const ddx = CubicBezierDer2( t, v0.x, v1.x, v2.x, v3.x );
+		const ddy = CubicBezierDer2( t, v0.y, v1.y, v2.y, v3.y );
+		const ddz = CubicBezierDer2( t, v0.z, v1.z, v2.z, v3.z );
+		const dddx = CubicBezierDer3( t, v0.x, v1.x, v2.x, v3.x );
+		const dddy = CubicBezierDer3( t, v0.y, v1.y, v2.y, v3.y );
+		const dddz = CubicBezierDer3( t, v0.z, v1.z, v2.z, v3.z );
+
+		const cx = dy * ddz - dz * ddy;
+		const cy = dz * ddx - dx * ddz;
+		const cz = dx * ddy - dy * ddx;
+
+		const crossLenSq = cx * cx + cy * cy + cz * cz;
+
+		if ( crossLenSq < 1e-20 ) return 0;
+
+		return ( cx * dddx + cy * dddy + cz * dddz ) / crossLenSq;
 
 	}
 

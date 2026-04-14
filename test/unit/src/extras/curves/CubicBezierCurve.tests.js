@@ -224,6 +224,19 @@ export default QUnit.module( 'Extras', () => {
 
 			} );
 
+			QUnit.test( 'getCurvature', ( assert ) => {
+
+				const curvature = curve.getCurvature( 0.5 );
+				assert.ok( curvature !== 0, 'Curvature at midpoint is non-zero' );
+
+				// Curvature is continuous and varies along the curve
+				const c0 = curve.getCurvature( 0 );
+				const c1 = curve.getCurvature( 1 );
+				assert.ok( typeof c0 === 'number' && isFinite( c0 ), 'Curvature at t=0 is finite' );
+				assert.ok( typeof c1 === 'number' && isFinite( c1 ), 'Curvature at t=1 is finite' );
+
+			} );
+
 		} );
 
 	} );

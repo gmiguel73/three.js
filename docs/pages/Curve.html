@@ -341,6 +341,114 @@ which seems to give a reasonable approximation.</p>
 							<dt class="tag-returns"><strong>Returns:</strong> The tangent vector.</dt>
 						</dl>
 					</div>
+					<h3 class="name name-method" id="getCurvature" translate="no">.<a href="#getCurvature">getCurvature</a><span class="signature">( t : <span class="param-type">number</span> )</span><span class="type-signature"> : number</span> </h3>
+					<div class="method">
+						<div class="description">
+							<p>Returns the curvature at the given interpolation factor.
+If the derived curve does not implement its own override,
+a numerical approximation via finite differences is used.</p>
+							<p>For 2D curves, returns signed curvature (positive = counter-clockwise).
+For 3D curves, returns unsigned curvature (always >= 0).</p>
+						</div>
+						<table class="params">
+							<tbody>
+								<tr>
+									<td class="name">
+										<strong translate="no">t</strong>
+									</td>
+									<td class="description last">
+										<p>The interpolation factor.</p>
+									</td>
+								</tr>
+							</tbody>
+						</table>
+						<dl class="details">
+							<dt class="tag-returns"><strong>Returns:</strong> The curvature at the given point.</dt>
+						</dl>
+					</div>
+					<h3 class="name name-method" id="getCurvatureAt" translate="no">.<a href="#getCurvatureAt">getCurvatureAt</a><span class="signature">( u : <span class="param-type">number</span> )</span><span class="type-signature"> : number</span> </h3>
+					<div class="method">
+						<div class="description">
+							<p>Same as <a href="Curve.html#getCurvature">Curve#getCurvature</a> but with equidistant samples.</p>
+						</div>
+						<table class="params">
+							<tbody>
+								<tr>
+									<td class="name">
+										<strong translate="no">u</strong>
+									</td>
+									<td class="description last">
+										<p>The interpolation factor.</p>
+									</td>
+								</tr>
+							</tbody>
+						</table>
+						<dl class="details">
+							<dt class="tag-see">See:</dt>
+							<dd class="tag-see">
+								<ul>
+									<li><a href="Curve.html#getPointAt">Curve#getPointAt</a></li>
+								</ul>
+							</dd>
+						</dl>
+						<dl class="details">
+							<dt class="tag-returns"><strong>Returns:</strong> The curvature at the given point.</dt>
+						</dl>
+					</div>
+					<h3 class="name name-method" id="getTorsion" translate="no">.<a href="#getTorsion">getTorsion</a><span class="signature">( t : <span class="param-type">number</span> )</span><span class="type-signature"> : number</span> </h3>
+					<div class="method">
+						<div class="description">
+							<p>Returns the torsion at the given interpolation factor.
+Torsion measures how a 3D curve twists out of its osculating plane.
+For 2D curves, torsion is always <code>0</code>.</p>
+							<p>If the derived curve does not implement its own override,
+a numerical approximation via finite differences is used.</p>
+						</div>
+						<table class="params">
+							<tbody>
+								<tr>
+									<td class="name">
+										<strong translate="no">t</strong>
+									</td>
+									<td class="description last">
+										<p>The interpolation factor.</p>
+									</td>
+								</tr>
+							</tbody>
+						</table>
+						<dl class="details">
+							<dt class="tag-returns"><strong>Returns:</strong> The torsion at the given point.</dt>
+						</dl>
+					</div>
+					<h3 class="name name-method" id="getTorsionAt" translate="no">.<a href="#getTorsionAt">getTorsionAt</a><span class="signature">( u : <span class="param-type">number</span> )</span><span class="type-signature"> : number</span> </h3>
+					<div class="method">
+						<div class="description">
+							<p>Same as <a href="Curve.html#getTorsion">Curve#getTorsion</a> but with equidistant samples.</p>
+						</div>
+						<table class="params">
+							<tbody>
+								<tr>
+									<td class="name">
+										<strong translate="no">u</strong>
+									</td>
+									<td class="description last">
+										<p>The interpolation factor.</p>
+									</td>
+								</tr>
+							</tbody>
+						</table>
+						<dl class="details">
+							<dt class="tag-see">See:</dt>
+							<dd class="tag-see">
+								<ul>
+									<li><a href="Curve.html#getPointAt">Curve#getPointAt</a></li>
+								</ul>
+							</dd>
+						</dl>
+						<dl class="details">
+							<dt class="tag-returns"><strong>Returns:</strong> The torsion at the given point.</dt>
+						</dl>
+					</div>
 					<h3 class="name name-method" id="getUtoTmapping" translate="no">.<a href="#getUtoTmapping">getUtoTmapping</a><span class="signature">( u : <span class="param-type">number</span>, distance : <span class="param-type">number</span> )</span><span class="type-signature"> : number</span> </h3>
 					<div class="method">
 						<div class="description">

@@ -49,6 +49,18 @@ export default QUnit.module( 'Extras', () => {
 
 			} );
 
+			QUnit.test( 'getCurvature', ( assert ) => {
+
+				const radius = 5;
+				const arc = new ArcCurve( 0, 0, radius, 0, Math.PI * 2, false );
+				const expectedCurvature = 1 / radius;
+
+				assert.numEqual( arc.getCurvature( 0 ), expectedCurvature, 'Arc curvature at t=0 is 1/r' );
+				assert.numEqual( arc.getCurvature( 0.5 ), expectedCurvature, 'Arc curvature at t=0.5 is 1/r' );
+				assert.numEqual( arc.getCurvature( 0.75 ), expectedCurvature, 'Arc curvature at t=0.75 is 1/r' );
+
+			} );
+
 		} );
 
 	} );

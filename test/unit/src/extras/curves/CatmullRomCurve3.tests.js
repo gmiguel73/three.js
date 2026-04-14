@@ -408,6 +408,31 @@ export default QUnit.module( 'Extras', () => {
 
 			} );
 
+			QUnit.test( 'getCurvature', ( assert ) => {
+
+				const curve = new CatmullRomCurve3( [
+					new Vector3( - 10, 0, 10 ),
+					new Vector3( - 5, 5, 5 ),
+					new Vector3( 0, 0, 0 ),
+					new Vector3( 5, - 5, 5 ),
+					new Vector3( 10, 0, 10 )
+				] );
+
+				const curvature = curve.getCurvature( 0.5 );
+				assert.ok( curvature >= 0, 'Curvature at midpoint is non-negative' );
+				assert.ok( isFinite( curvature ), 'Curvature at midpoint is finite' );
+
+				// Straight line should have zero curvature
+				const straight = new CatmullRomCurve3( [
+					new Vector3( 0, 0, 0 ),
+					new Vector3( 5, 0, 0 ),
+					new Vector3( 10, 0, 0 )
+				] );
+
+				assert.numEqual( straight.getCurvature( 0.5 ), 0, 'Straight line has zero curvature' );
+
+			} );
+
 		} );
 
 	} );

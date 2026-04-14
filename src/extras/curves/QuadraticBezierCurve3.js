@@ -1,5 +1,5 @@
 import { Curve } from '../core/Curve.js';
-import { QuadraticBezier } from '../core/Interpolations.js';
+import { QuadraticBezier, QuadraticBezierDer1, QuadraticBezierDer2 } from '../core/Interpolations.js';
 import { Vector3 } from '../../math/Vector3.js';
 
 /**
@@ -74,6 +74,36 @@ class QuadraticBezierCurve3 extends Curve {
 		);
 
 		return point;
+
+	}
+
+	getCurvature( t ) {
+
+		const v0 = this.v0, v1 = this.v1, v2 = this.v2;
+
+		const dx = QuadraticBezierDer1( t, v0.x, v1.x, v2.x );
+		const dy = QuadraticBezierDer1( t, v0.y, v1.y, v2.y );
+		const dz = QuadraticBezierDer1( t, v0.z, v1.z, v2.z );
+		const ddx = QuadraticBezierDer2( t, v0.x, v1.x, v2.x );
+		const ddy = QuadraticBezierDer2( t, v0.y, v1.y, v2.y );
+		const ddz = QuadraticBezierDer2( t, v0.z, v1.z, v2.z );
+
+		const cx = dy * ddz - dz * ddy;
+		const cy = dz * ddx - dx * ddz;
+		const cz = dx * ddy - dy * ddx;
+
+		const crossLen = Math.sqrt( cx * cx + cy * cy + cz * cz );
+		const speed = Math.sqrt( dx * dx + dy * dy + dz * dz );
+
+		if ( speed < 1e-10 ) return 0;
+
+		return crossLen / ( speed * speed * speed );
+
+	}
+
+	getTorsion( /* t */ ) {
+
+		return 0;
 
 	}
 

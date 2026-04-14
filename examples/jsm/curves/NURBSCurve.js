@@ -122,6 +122,48 @@ class NURBSCurve extends Curve {
 
 	}
 
+	getCurvature( t ) {
+
+		const u = this.knots[ 0 ] + t * ( this.knots[ this.knots.length - 1 ] - this.knots[ 0 ] );
+		const ders = NURBSUtils.calcNURBSDerivatives( this.degree, this.knots, this.controlPoints, u, 2 );
+
+		const d1 = ders[ 1 ];
+		const d2 = ders[ 2 ];
+
+		const cx = d1.y * d2.z - d1.z * d2.y;
+		const cy = d1.z * d2.x - d1.x * d2.z;
+		const cz = d1.x * d2.y - d1.y * d2.x;
+
+		const crossLen = Math.sqrt( cx * cx + cy * cy + cz * cz );
+		const speed = d1.length();
+
+		if ( speed < 1e-10 ) return 0;
+
+		return crossLen / ( speed * speed * speed );
+
+	}
+
+	getTorsion( t ) {
+
+		const u = this.knots[ 0 ] + t * ( this.knots[ this.knots.length - 1 ] - this.knots[ 0 ] );
+		const ders = NURBSUtils.calcNURBSDerivatives( this.degree, this.knots, this.controlPoints, u, 3 );
+
+		const d1 = ders[ 1 ];
+		const d2 = ders[ 2 ];
+		const d3 = ders[ 3 ];
+
+		const cx = d1.y * d2.z - d1.z * d2.y;
+		const cy = d1.z * d2.x - d1.x * d2.z;
+		const cz = d1.x * d2.y - d1.y * d2.x;
+
+		const crossLenSq = cx * cx + cy * cy + cz * cz;
+
+		if ( crossLenSq < 1e-20 ) return 0;
+
+		return ( cx * d3.x + cy * d3.y + cz * d3.z ) / crossLenSq;
+
+	}
+
 	toJSON() {
 
 		const data = super.toJSON();

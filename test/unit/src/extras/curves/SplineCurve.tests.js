@@ -198,6 +198,21 @@ export default QUnit.module( 'Extras', () => {
 
 			} );
 
+			QUnit.test( 'getCurvature', ( assert ) => {
+
+				const curvature = _curve.getCurvature( 0.5 );
+				assert.ok( typeof curvature === 'number' && isFinite( curvature ), 'Curvature at midpoint is finite' );
+
+				// Straight-line spline: all collinear points
+				const straightSpline = new SplineCurve( [
+					new Vector2( 0, 0 ),
+					new Vector2( 5, 5 ),
+					new Vector2( 10, 10 )
+				] );
+				assert.numEqual( straightSpline.getCurvature( 0.5 ), 0, 'Collinear spline has zero curvature' );
+
+			} );
+
 		} );
 
 	} );

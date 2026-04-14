@@ -1,5 +1,5 @@
 import { Curve } from '../core/Curve.js';
-import { QuadraticBezier } from '../core/Interpolations.js';
+import { QuadraticBezier, QuadraticBezierDer1, QuadraticBezierDer2 } from '../core/Interpolations.js';
 import { Vector2 } from '../../math/Vector2.js';
 
 /**
@@ -89,6 +89,24 @@ class QuadraticBezierCurve extends Curve {
 		);
 
 		return point;
+
+	}
+
+	getCurvature( t ) {
+
+		const v0 = this.v0, v1 = this.v1, v2 = this.v2;
+
+		const dx = QuadraticBezierDer1( t, v0.x, v1.x, v2.x );
+		const dy = QuadraticBezierDer1( t, v0.y, v1.y, v2.y );
+		const ddx = QuadraticBezierDer2( t, v0.x, v1.x, v2.x );
+		const ddy = QuadraticBezierDer2( t, v0.y, v1.y, v2.y );
+
+		const speedSq = dx * dx + dy * dy;
+		const speed = Math.sqrt( speedSq );
+
+		if ( speed < 1e-10 ) return 0;
+
+		return ( dx * ddy - dy * ddx ) / ( speedSq * speed );
 
 	}
 

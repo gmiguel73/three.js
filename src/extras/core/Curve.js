@@ -328,6 +328,197 @@ class Curve {
 	}
 
 	/**
+	 * Returns the curvature at the given interpolation factor.
+	 * If the derived curve does not implement its own override,
+	 * a numerical approximation via finite differences is used.
+	 *
+	 * For 2D curves, returns signed curvature (positive = counter-clockwise).
+	 * For 3D curves, returns unsigned curvature (always >= 0).
+	 *
+	 * @param {number} t - The interpolation factor.
+	 * @return {number} The curvature at the given point.
+	 */
+	getCurvature( t ) {
+
+		const delta = 0.0001;
+
+		const t0 = Math.max( t - delta, 0 );
+		const t1 = t;
+		const t2 = Math.min( t + delta, 1 );
+
+		const p0 = this.getPoint( t0 );
+		const p1 = this.getPoint( t1 );
+		const p2 = this.getPoint( t2 );
+
+		const dt01 = t1 - t0;
+		const dt12 = t2 - t1;
+
+		if ( p0.isVector2 ) {
+
+			const dx1 = ( p1.x - p0.x ) / dt01;
+			const dy1 = ( p1.y - p0.y ) / dt01;
+			const dx2 = ( p2.x - p1.x ) / dt12;
+			const dy2 = ( p2.y - p1.y ) / dt12;
+
+			const dtAvg = ( dt01 + dt12 ) * 0.5;
+			const ddx = ( dx2 - dx1 ) / dtAvg;
+			const ddy = ( dy2 - dy1 ) / dtAvg;
+
+			const dxAvg = ( dx1 + dx2 ) * 0.5;
+			const dyAvg = ( dy1 + dy2 ) * 0.5;
+
+			const speedSq = dxAvg * dxAvg + dyAvg * dyAvg;
+			const speed = Math.sqrt( speedSq );
+
+			if ( speed < 1e-10 ) return 0;
+
+			return ( dxAvg * ddy - dyAvg * ddx ) / ( speedSq * speed );
+
+		} else {
+
+			const dx1 = ( p1.x - p0.x ) / dt01;
+			const dy1 = ( p1.y - p0.y ) / dt01;
+			const dz1 = ( p1.z - p0.z ) / dt01;
+			const dx2 = ( p2.x - p1.x ) / dt12;
+			const dy2 = ( p2.y - p1.y ) / dt12;
+			const dz2 = ( p2.z - p1.z ) / dt12;
+
+			const dtAvg = ( dt01 + dt12 ) * 0.5;
+			const ddx = ( dx2 - dx1 ) / dtAvg;
+			const ddy = ( dy2 - dy1 ) / dtAvg;
+			const ddz = ( dz2 - dz1 ) / dtAvg;
+
+			const dxAvg = ( dx1 + dx2 ) * 0.5;
+			const dyAvg = ( dy1 + dy2 ) * 0.5;
+			const dzAvg = ( dz1 + dz2 ) * 0.5;
+
+			// cross product of first and second derivatives
+			const cx = dyAvg * ddz - dzAvg * ddy;
+			const cy = dzAvg * ddx - dxAvg * ddz;
+			const cz = dxAvg * ddy - dyAvg * ddx;
+
+			const crossLen = Math.sqrt( cx * cx + cy * cy + cz * cz );
+			const speed = Math.sqrt( dxAvg * dxAvg + dyAvg * dyAvg + dzAvg * dzAvg );
+
+			if ( speed < 1e-10 ) return 0;
+
+			return crossLen / ( speed * speed * speed );
+
+		}
+
+	}
+
+	/**
+	 * Same as {@link Curve#getCurvature} but with equidistant samples.
+	 *
+	 * @param {number} u - The interpolation factor.
+	 * @return {number} The curvature at the given point.
+	 * @see {@link Curve#getPointAt}
+	 */
+	getCurvatureAt( u ) {
+
+		const t = this.getUtoTmapping( u );
+		return this.getCurvature( t );
+
+	}
+
+	/**
+	 * Returns the torsion at the given interpolation factor.
+	 * Torsion measures how a 3D curve twists out of its osculating plane.
+	 * For 2D curves, torsion is always `0`.
+	 *
+	 * If the derived curve does not implement its own override,
+	 * a numerical approximation via finite differences is used.
+	 *
+	 * @param {number} t - The interpolation factor.
+	 * @return {number} The torsion at the given point.
+	 */
+	getTorsion( t ) {
+
+		const p0 = this.getPoint( 0 );
+
+		if ( p0.isVector2 ) return 0;
+
+		const delta = 0.0001;
+
+		const t0 = Math.max( t - delta, 0 );
+		const t1 = Math.max( t - delta * 0.5, 0 );
+		const t2 = Math.min( t + delta * 0.5, 1 );
+		const t3 = Math.min( t + delta, 1 );
+
+		const pa = this.getPoint( t0 );
+		const pb = this.getPoint( t1 );
+		const pc = this.getPoint( t2 );
+		const pd = this.getPoint( t3 );
+
+		const dt1 = t1 - t0 || 1e-10;
+		const dt2 = t2 - t1 || 1e-10;
+		const dt3 = t3 - t2 || 1e-10;
+
+		// first derivatives at two half-step points
+		const d1x_a = ( pb.x - pa.x ) / dt1;
+		const d1y_a = ( pb.y - pa.y ) / dt1;
+		const d1z_a = ( pb.z - pa.z ) / dt1;
+
+		const d1x_b = ( pc.x - pb.x ) / dt2;
+		const d1y_b = ( pc.y - pb.y ) / dt2;
+		const d1z_b = ( pc.z - pb.z ) / dt2;
+
+		const d1x_c = ( pd.x - pc.x ) / dt3;
+		const d1y_c = ( pd.y - pc.y ) / dt3;
+		const d1z_c = ( pd.z - pc.z ) / dt3;
+
+		// first derivative (central)
+		const d1x = ( d1x_a + d1x_b ) * 0.5;
+		const d1y = ( d1y_a + d1y_b ) * 0.5;
+		const d1z = ( d1z_a + d1z_b ) * 0.5;
+
+		// second derivative
+		const dtAvg12 = ( dt1 + dt2 ) * 0.5;
+		const dtAvg23 = ( dt2 + dt3 ) * 0.5;
+		const d2x = ( d1x_b - d1x_a ) / dtAvg12;
+		const d2y = ( d1y_b - d1y_a ) / dtAvg12;
+		const d2z = ( d1z_b - d1z_a ) / dtAvg12;
+
+		// third derivative
+		const d2x_b = ( d1x_c - d1x_b ) / dtAvg23;
+		const d2y_b = ( d1y_c - d1y_b ) / dtAvg23;
+		const d2z_b = ( d1z_c - d1z_b ) / dtAvg23;
+
+		const dtAvg = ( dtAvg12 + dtAvg23 ) * 0.5;
+		const d3x = ( d2x_b - d2x ) / dtAvg;
+		const d3y = ( d2y_b - d2y ) / dtAvg;
+		const d3z = ( d2z_b - d2z ) / dtAvg;
+
+		// cross product r' x r''
+		const cx = d1y * d2z - d1z * d2y;
+		const cy = d1z * d2x - d1x * d2z;
+		const cz = d1x * d2y - d1y * d2x;
+
+		const crossLenSq = cx * cx + cy * cy + cz * cz;
+
+		if ( crossLenSq < 1e-20 ) return 0;
+
+		// torsion = (r' x r'') . r''' / |r' x r''|^2
+		return ( cx * d3x + cy * d3y + cz * d3z ) / crossLenSq;
+
+	}
+
+	/**
+	 * Same as {@link Curve#getTorsion} but with equidistant samples.
+	 *
+	 * @param {number} u - The interpolation factor.
+	 * @return {number} The torsion at the given point.
+	 * @see {@link Curve#getPointAt}
+	 */
+	getTorsionAt( u ) {
+
+		const t = this.getUtoTmapping( u );
+		return this.getTorsion( t );
+
+	}
+
+	/**
 	 * Generates the Frenet Frames. Requires a curve definition in 3D space. Used
 	 * in geometries like {@link TubeGeometry} or {@link ExtrudeGeometry}.
 	 *

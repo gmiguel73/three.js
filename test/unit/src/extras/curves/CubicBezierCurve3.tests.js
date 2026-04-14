@@ -260,6 +260,30 @@ export default QUnit.module( 'Extras', () => {
 
 			} );
 
+			QUnit.test( 'getCurvature/getTorsion', ( assert ) => {
+
+				const curvature = curve.getCurvature( 0.5 );
+				assert.ok( curvature > 0, 'Curvature at midpoint is positive' );
+
+				// getCurvatureAt should also work
+				const curvatureAt = curve.getCurvatureAt( 0.5 );
+				assert.ok( curvatureAt > 0, 'CurvatureAt at midpoint is positive' );
+
+				// Torsion should be a finite number
+				const torsion = curve.getTorsion( 0.5 );
+				assert.ok( typeof torsion === 'number' && isFinite( torsion ), 'Torsion at midpoint is finite' );
+
+				// Planar cubic Bezier (z=0) should have 0 torsion
+				const planarCurve = new CubicBezierCurve3(
+					new Vector3( 0, 0, 0 ),
+					new Vector3( 5, 10, 0 ),
+					new Vector3( 15, 10, 0 ),
+					new Vector3( 20, 0, 0 )
+				);
+				assert.numEqual( planarCurve.getTorsion( 0.5 ), 0, 'Planar cubic Bezier has zero torsion' );
+
+			} );
+
 		} );
 
 	} );
