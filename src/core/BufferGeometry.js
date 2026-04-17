@@ -406,6 +406,12 @@ class BufferGeometry extends EventDispatcher {
 
 		}
 
+		if ( this.parameters !== undefined ) {
+
+			this._parametersInvalidated = true;
+
+		}
+
 		return this;
 
 	}
@@ -1226,7 +1232,7 @@ class BufferGeometry extends EventDispatcher {
 		if ( this.name !== '' ) data.name = this.name;
 		if ( Object.keys( this.userData ).length > 0 ) data.userData = this.userData;
 
-		if ( this.parameters !== undefined ) {
+		if ( this.parameters !== undefined && this._parametersInvalidated !== true ) {
 
 			const parameters = this.parameters;
 
@@ -1237,6 +1243,12 @@ class BufferGeometry extends EventDispatcher {
 			}
 
 			return data;
+
+		}
+
+		if ( this._parametersInvalidated === true ) {
+
+			data.type = 'BufferGeometry';
 
 		}
 
@@ -1436,6 +1448,12 @@ class BufferGeometry extends EventDispatcher {
 		// user data
 
 		this.userData = source.userData;
+
+		if ( source._parametersInvalidated === true ) {
+
+			this._parametersInvalidated = true;
+
+		}
 
 		return this;
 
