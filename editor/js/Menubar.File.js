@@ -444,6 +444,29 @@ function MenubarFile( editor ) {
 	} );
 	fileExportSubmenu.add( option );
 
+	// Export GLXF
+
+	option = new UIRow();
+	option.setClass( 'option' );
+	option.setTextContent( 'GLXF' );
+	option.onClick( async function () {
+
+		const { GLXFExporter } = await import( 'three/addons/exporters/GLXFExporter.js' );
+
+		const exporter = new GLXFExporter();
+		const result = await exporter.parseAsync( editor.scene );
+
+		saveString( result.glxf, 'scene.glxf' );
+
+		result.assets.forEach( function ( data, filename ) {
+
+			saveString( data, filename );
+
+		} );
+
+	} );
+	fileExportSubmenu.add( option );
+
 	//
 
 	function getAnimations( scene ) {

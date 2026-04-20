@@ -217,6 +217,7 @@ import './src/math/interpolants/QuaternionLinearInterpolant.tests.js';
 import './src/objects/Bone.tests.js';
 import './src/objects/BatchedMesh.tests.js';
 import './src/objects/Group.tests.js';
+import './src/objects/ObjectExport.tests.js';
 import './src/objects/InstancedMesh.tests.js';
 import './src/objects/Line.tests.js';
 import './src/objects/LineLoop.tests.js';
