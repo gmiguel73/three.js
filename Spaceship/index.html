@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>three.js - Spaceship Builder</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "../build/three.module.js",
+                "three/addons/": "../examples/jsm/"
+            }
+        }
+    </script>
+
+    <!-- Game-style top bar with camera controls and actions -->
+    <div id="game-toolbar">
+        <div class="toolbar-section">
+            <button class="tool-btn" id="btn-new" title="New Ship">📄</button>
+            <button class="tool-btn" id="btn-save" title="Save">💾</button>
+            <button class="tool-btn" id="btn-load" title="Load">📂</button>
+            <div class="separator"></div>
+            <button class="tool-btn" id="btn-undo" title="Undo">↶</button>
+            <button class="tool-btn" id="btn-redo" title="Redo">↷</button>
+            <div class="separator"></div>
+            <button class="tool-btn" id="btn-export" title="Export">⬇️</button>
+            <input type="file" id="file-import-input" accept=".json" style="display: none;">
+            <button class="tool-btn" id="btn-import" title="Import">⬆️</button>
+        </div>
+        
+        <div class="toolbar-section camera-controls">
+            <span class="control-label">View:</span>
+            <button class="view-btn active" id="view-3q" title="3/4 View">◫</button>
+            <button class="view-btn" id="view-top" title="Top Down">⬜</button>
+            <button class="view-btn" id="view-3d" title="3D Free">🎮</button>
+            <div class="separator"></div>
+            <button class="tool-btn" id="btn-grid" title="Toggle Grid">⊞</button>
+        </div>
+        
+        <div class="toolbar-section">
+            <span id="ship-name">Untitled Ship</span>
+        </div>
+    </div>
+
+    <div id="container">
+        <div id="sidebar-left">
+            <div class="panel">
+                <div class="panel-header">Parts Inventory</div>
+                <div class="panel-content" id="parts-inventory">
+                    <!-- Populated by JavaScript -->
+                </div>
+            </div>
+            <div class="panel">
+                <div class="panel-header">Floors</div>
+                <div class="panel-content" id="floor-manager">
+                    <div class="floor-list" id="floor-list"></div>
+                    <button id="add-floor-above">+ Add Floor Above</button>
+                    <button id="add-floor-below">+ Add Floor Below</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="viewport"></div>
+
+        <div id="sidebar-right">
+            <div class="panel">
+                <div class="panel-header">Properties</div>
+                <div class="panel-content" id="properties-panel">
+                    <div id="no-selection">Select a module to edit properties</div>
+                    <div id="module-properties" style="display: none;">
+                        <div class="property-group">
+                            <label>Position</label>
+                            <div class="vector3">
+                                <input type="number" id="pos-x" step="1" placeholder="X">
+                                <input type="number" id="pos-y" step="1" placeholder="Y">
+                                <input type="number" id="pos-z" step="1" placeholder="Z">
+                            </div>
+                        </div>
+                        <div class="property-group">
+                            <label>Rotation (deg)</label>
+                            <div class="vector3">
+                                <input type="number" id="rot-x" step="15" placeholder="X">
+                                <input type="number" id="rot-y" step="15" placeholder="Y">
+                                <input type="number" id="rot-z" step="15" placeholder="Z">
+                            </div>
+                        </div>
+                        <div class="property-group">
+                            <label>Scale</label>
+                            <div class="vector3">
+                                <input type="number" id="scale-x" step="1" min="1" max="10" value="1">
+                                <input type="number" id="scale-y" step="1" min="1" max="10" value="1">
+                                <input type="number" id="scale-z" step="1" min="1" max="10" value="1">
+                            </div>
+                        </div>
+                        <div class="property-group">
+                            <label>Color</label>
+                            <input type="color" id="color-picker" value="#888888">
+                        </div>
+                        <button id="delete-module" class="danger">Delete Module</button>
+                    </div>
+                </div>
+            </div>
+            <div class="panel">
+                <div class="panel-header">Info</div>
+                <div class="panel-content" id="info-panel">
+                    <div>Modules: <span id="module-count">0</span></div>
+                    <div>Grid: 20 × 40</div>
+                    <div>Floors: <span id="floor-count">1</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="status-bar">
+        <span id="status-text">Ready</span>
+        <span id="mouse-position"></span>
+    </div>
+
+    <script type="module">
+        import { SpaceshipBuilder } from './js/main.js';
+        
+        window.builder = new SpaceshipBuilder();
+        window.builder.init();
+    </script>
+</body>
+</html>
