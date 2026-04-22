@@ -1,7 +1,15 @@
 import * as THREE from 'three';
 import { ShipModule } from './ShipModule.js';
+import { registerModule } from './registry.js';
 
 export class CargoBay extends ShipModule {
+    static meta = {
+        name: 'Cargo Bay',
+        icon: '📦',
+        description: 'Storage compartment',
+        hotkey: '5'
+    };
+
     constructor(params = {}) {
         super('cargo', params);
         this.build();
@@ -109,3 +117,6 @@ export class CargoBay extends ShipModule {
         }
     }
 }
+
+// Self-register with the module registry
+registerModule('cargo', CargoBay, CargoBay.meta);

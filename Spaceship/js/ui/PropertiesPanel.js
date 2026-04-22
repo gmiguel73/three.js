@@ -19,6 +19,10 @@ export class PropertiesPanel {
         document.getElementById('rot-y').addEventListener('change', (e) => this.updateRotation('y', parseFloat(e.target.value)));
         document.getElementById('rot-z').addEventListener('change', (e) => this.updateRotation('z', parseFloat(e.target.value)));
         
+        // Rotation buttons (90 degree increments)
+        document.getElementById('rot-y-left').addEventListener('click', () => this.rotateY(-90));
+        document.getElementById('rot-y-right').addEventListener('click', () => this.rotateY(90));
+        
         // Scale
         document.getElementById('scale-x').addEventListener('change', (e) => this.updateScale('x', parseFloat(e.target.value)));
         document.getElementById('scale-y').addEventListener('change', (e) => this.updateScale('y', parseFloat(e.target.value)));
@@ -28,6 +32,11 @@ export class PropertiesPanel {
         document.getElementById('color-picker').addEventListener('change', (e) => {
             const hex = parseInt(e.target.value.substring(1), 16);
             this.updateColor(hex);
+        });
+        
+        // Export GLTF
+        document.getElementById('export-gltf').addEventListener('click', () => {
+            this.exportGLTF();
         });
         
         // Delete
@@ -100,6 +109,56 @@ export class PropertiesPanel {
     updateColor(hexColor) {
         if (!this.currentModule) return;
         this.builder.updateModule(this.currentModule, 'color', hexColor);
+    }
+    
+    rotateY(degrees) {
+        if (!this.currentModule) return;
+        
+        const currentDegrees = this.currentModule.rotation.y * 180 / Math.PI;
+        const newDegrees = currentDegrees + degrees;
+        this.updateRotation('y', newDegrees);
+        
+        // Update the input field
+        document.getElementById('rot-y').value = newDegrees.toFixed(0);
+    }
+    
+    async exportGLTF() {
+        if (!this.currentModule) return;
+        
+        try {
+            // Dynamic import of GLTFExporter
+            const { GLTFExporter } = await import('three/addons/exporters/GLTFExporter.js');
+            
+            const exporter = new GLTFExporter();
+            
+            // Clone the module for export (to avoid modifying original)
+            const clone = this.currentModule.clone();
+            
+            exporter.parse(
+                clone,
+                (gltf) => {
+                    const output = JSON.stringify(gltf, null, 2);
+                    const blob = new Blob([output], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${this.currentModule.type}_${Date.now()}.gltf`;
+                    a.click();
+                    
+                    URL.revokeObjectURL(url);
+                    this.builder.updateStatus(`Exported ${this.currentModule.type} as GLTF`);
+                },
+                (error) => {
+                    console.error('Error exporting GLTF:', error);
+                    this.builder.updateStatus('GLTF export failed');
+                },
+                { binary: false }
+            );
+        } catch (error) {
+            console.error('Failed to load GLTFExporter:', error);
+            this.builder.updateStatus('GLTF exporter not available');
+        }
     }
     
     refresh() {

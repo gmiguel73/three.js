@@ -1,7 +1,15 @@
 import * as THREE from 'three';
 import { ShipModule } from './ShipModule.js';
+import { registerModule } from './registry.js';
 
 export class Connector extends ShipModule {
+    static meta = {
+        name: 'Connector',
+        icon: '🔗',
+        description: 'Universal joint',
+        hotkey: '7'
+    };
+
     constructor(params = {}) {
         super('connector', params);
         this.build();
@@ -79,3 +87,5 @@ export class Connector extends ShipModule {
         this.add(hub);
     }
 }
+// Self-register with the module registry
+registerModule('connector', Connector, Connector.meta);

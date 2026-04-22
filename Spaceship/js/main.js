@@ -7,14 +7,22 @@ import { PropertiesPanel } from './ui/PropertiesPanel.js';
 import { FloorManager } from './ui/FloorManager.js';
 import { Controls } from './Controls.js';
 import { ShipModule } from './modules/ShipModule.js';
-import { Cockpit } from './modules/Cockpit.js';
-import { Engine } from './modules/Engine.js';
-import { Wing } from './modules/Wing.js';
-import { CargoBay } from './modules/CargoBay.js';
-import { FuelTank } from './modules/FuelTank.js';
-import { Connector } from './modules/Connector.js';
-import { Habitation } from './modules/Habitation.js';
-import { FloorTile } from './modules/FloorTile.js';
+import { MODULE_REGISTRY, createModule } from './modules/registry.js';
+import { AddCommand } from './commands/AddCommand.js';
+import { RemoveCommand } from './commands/RemoveCommand.js';
+import { ModifyCommand } from './commands/ModifyCommand.js';
+// Import all modules to trigger self-registration (side effects)
+import './modules/FloorTile.js';
+import './modules/Cockpit.js';
+import './modules/Engine.js';
+import './modules/Wing.js';
+import './modules/CargoBay.js';
+import './modules/FuelTank.js';
+import './modules/Connector.js';
+import './modules/Habitation.js';
+import './modules/Weapon.js';
+import './modules/Sensor.js';
+import './modules/Shield.js';
 
 export class SpaceshipBuilder {
     constructor() {
@@ -47,6 +55,10 @@ export class SpaceshipBuilder {
         this.previewMesh = null;
         this.previewOutline = null;
         this.previewValid = true;
+        this.areaPreviewMeshes = [];
+        
+        // Clipboard for copy/paste
+        this.clipboard = null;
     }
     
     init() {
@@ -86,20 +98,22 @@ export class SpaceshipBuilder {
             for (let z = 0; z < floorSize; z++) {
                 const pos = {
                     x: startX + x,
-                    y: this.currentFloor * this.gridSystem.cellSize + 0.5,
+                    y: this.currentFloor * this.gridSystem.cellSize,  // Floor tiles at ground level
                     z: startZ + z
                 };
-                const floorTile = new FloorTile();
-                floorTile.position.copy(pos);
-                floorTile.castShadow = true;
-                floorTile.receiveShadow = true;
-                this.scene.add(floorTile);
-                this.modules.push(floorTile);
+                const floorTile = createModule('floor');
+                if (floorTile) {
+                    floorTile.position.copy(pos);
+                    floorTile.floor = this.currentFloor;
+                    floorTile.castShadow = true;
+                    floorTile.receiveShadow = true;
+                    this.scene.add(floorTile);
+                    this.modules.push(floorTile);
+                }
             }
         }
         this.updateModuleCount();
     }
-    
     setupScene() {
         const container = document.getElementById('viewport');
         
@@ -142,28 +156,49 @@ export class SpaceshipBuilder {
         this.currentCameraMode = 'threeQuarter';
         this.camera = this.cameras[this.currentCameraMode];
         
-        // Renderer
-        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        // Renderer with enhanced settings
+        this.renderer = new THREE.WebGLRenderer({ 
+            antialias: true,
+            alpha: false,
+            powerPreference: "high-performance"
+        });
         this.renderer.setSize(container.clientWidth, container.clientHeight);
-        this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 1.2;
         container.appendChild(this.renderer.domElement);
         
-        // Lights
-        const ambient = new THREE.AmbientLight(0x404040, 0.6);
+        // Enhanced lighting setup
+        // Ambient light for base illumination
+        const ambient = new THREE.AmbientLight(0x404060, 0.4);
         this.scene.add(ambient);
         
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        dirLight.position.set(20, 30, 10);
+        // Main directional light (sun)
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+        dirLight.position.set(30, 40, 20);
         dirLight.castShadow = true;
-        dirLight.shadow.camera.left = -50;
-        dirLight.shadow.camera.right = 50;
-        dirLight.shadow.camera.top = 50;
-        dirLight.shadow.camera.bottom = -50;
+        dirLight.shadow.camera.left = -60;
+        dirLight.shadow.camera.right = 60;
+        dirLight.shadow.camera.top = 60;
+        dirLight.shadow.camera.bottom = -60;
+        dirLight.shadow.camera.near = 0.1;
+        dirLight.shadow.camera.far = 150;
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
+        dirLight.shadow.bias = -0.0001;
+        dirLight.shadow.radius = 4;
         this.scene.add(dirLight);
         
-        const hemiLight = new THREE.HemisphereLight(0x606060, 0x202020, 0.4);
+        // Fill light from opposite direction
+        const fillLight = new THREE.DirectionalLight(0x8090ff, 0.3);
+        fillLight.position.set(-20, 20, -15);
+        this.scene.add(fillLight);
+        
+        // Hemisphere light for natural ambient
+        const hemiLight = new THREE.HemisphereLight(0x606080, 0x202030, 0.5);
         this.scene.add(hemiLight);
         
         // Orbit controls - will be reconfigured per camera mode
@@ -331,12 +366,21 @@ export class SpaceshipBuilder {
         this.updateStatus('Ready');
         // Clear preview
         this.clearPreview();
+        // Re-enable camera controls
+        if (this.controls) {
+            this.controls.enabled = true;
+        }
     }
     
     placeModule(type, position) {
         const snappedPos = this.gridSystem.snapToGrid(position);
-        // Place on top of grid, not intersecting it (grid is at Y=0, modules sit at Y=0.5)
-        snappedPos.y = this.currentFloor * this.gridSystem.cellSize + 0.5;
+        
+        // Floor tiles sit at ground level, other modules sit 0.5 units above
+        if (type === 'floor') {
+            snappedPos.y = this.currentFloor * this.gridSystem.cellSize;
+        } else {
+            snappedPos.y = this.currentFloor * this.gridSystem.cellSize + 0.5;
+        }
         
         // Check for collision with existing modules
         const collision = this.checkCollision(snappedPos, type);
@@ -349,37 +393,11 @@ export class SpaceshipBuilder {
             return null;
         }
         
-        let module;
-        switch(type) {
-            case 'cockpit':
-                module = new Cockpit();
-                break;
-            case 'engine':
-                module = new Engine();
-                break;
-            case 'wing':
-                module = new Wing();
-                break;
-            case 'cargo':
-                module = new CargoBay();
-                break;
-            case 'fuel':
-                module = new FuelTank();
-                break;
-            case 'connector':
-                module = new Connector();
-                break;
-            case 'habitation':
-                module = new Habitation();
-                break;
-            case 'floor':
-                module = new FloorTile();
-                break;
-            default:
-                module = new ShipModule(type);
-        }
+        const module = createModule(type);
+        if (!module) return null;
         
         module.position.copy(snappedPos);
+        module.floor = this.currentFloor;  // Store floor as property
         module.castShadow = true;
         module.receiveShadow = true;
         
@@ -399,10 +417,12 @@ export class SpaceshipBuilder {
         const tolerance = 0.1;
         let hasFloorTile = false;
         
+        // Determine which floor we're checking
+        const posFloor = this.currentFloor;
+        
         for (const module of this.modules) {
-            // Only check modules on the same floor
-            const moduleFloor = Math.round((module.position.y - 0.5) / this.gridSystem.cellSize);
-            const posFloor = Math.round((position.y - 0.5) / this.gridSystem.cellSize);
+            // Use stored floor property instead of calculating from Y
+            const moduleFloor = module.floor !== undefined ? module.floor : 0;
             
             if (moduleFloor === posFloor) {
                 const dx = Math.abs(module.position.x - position.x);
@@ -416,9 +436,13 @@ export class SpaceshipBuilder {
                         if (type === 'floor') {
                             return module;
                         }
+                        // Floor tiles don't block non-floor modules (they go on top)
                     } else {
-                        // Non-floor module blocks placement
-                        return module;
+                        // Non-floor module blocks other non-floor modules
+                        if (type !== 'floor') {
+                            return module;
+                        }
+                        // Non-floor modules don't block floor tiles (floor goes underneath)
                     }
                 }
             }
@@ -436,36 +460,9 @@ export class SpaceshipBuilder {
         // Remove existing preview
         this.clearPreview();
         
-        // Create preview mesh based on type
-        let previewModule;
-        switch(type) {
-            case 'cockpit':
-                previewModule = new Cockpit();
-                break;
-            case 'engine':
-                previewModule = new Engine();
-                break;
-            case 'wing':
-                previewModule = new Wing();
-                break;
-            case 'cargo':
-                previewModule = new CargoBay();
-                break;
-            case 'fuel':
-                previewModule = new FuelTank();
-                break;
-            case 'connector':
-                previewModule = new Connector();
-                break;
-            case 'habitation':
-                previewModule = new Habitation();
-                break;
-            case 'floor':
-                previewModule = new FloorTile();
-                break;
-            default:
-                previewModule = new ShipModule(type);
-        }
+        // Create preview mesh using registry
+        const previewModule = createModule(type);
+        if (!previewModule) return;
         
         // Make it semi-transparent and visible
         previewModule.traverse((child) => {
@@ -516,7 +513,12 @@ export class SpaceshipBuilder {
         if (!this.previewMesh || !this.isPlacing) return;
         
         const snappedPos = this.gridSystem.snapToGrid(position);
-        snappedPos.y = this.currentFloor * this.gridSystem.cellSize + 0.5;
+        // Floor tiles at ground level, other modules 0.5 units above
+        if (this.placingType === 'floor') {
+            snappedPos.y = this.currentFloor * this.gridSystem.cellSize;
+        } else {
+            snappedPos.y = this.currentFloor * this.gridSystem.cellSize + 0.5;
+        }
         
         // Update preview mesh position
         this.previewMesh.position.copy(snappedPos);
@@ -525,6 +527,7 @@ export class SpaceshipBuilder {
         if (this.previewOutline) {
             this.previewOutline.position.x = snappedPos.x;
             this.previewOutline.position.z = snappedPos.z;
+            this.previewOutline.position.y = this.currentFloor * this.gridSystem.cellSize + 0.02;
             
             // Check collision and update color
             const collision = this.checkCollision(snappedPos, this.placingType);
@@ -542,14 +545,108 @@ export class SpaceshipBuilder {
             this.scene.remove(this.previewOutline);
             this.previewOutline = null;
         }
+        // Clear area preview meshes
+        if (this.areaPreviewMeshes) {
+            this.areaPreviewMeshes.forEach(mesh => this.scene.remove(mesh));
+            this.areaPreviewMeshes = [];
+        }
+    }
+    
+    updateAreaPreview(startPos, endPos) {
+        // Clear existing area preview
+        if (this.areaPreviewMeshes) {
+            this.areaPreviewMeshes.forEach(mesh => this.scene.remove(mesh));
+        }
+        this.areaPreviewMeshes = [];
+        
+        // Calculate rectangle bounds
+        const minX = Math.min(startPos.x, endPos.x);
+        const maxX = Math.max(startPos.x, endPos.x);
+        const minZ = Math.min(startPos.z, endPos.z);
+        const maxZ = Math.max(startPos.z, endPos.z);
+        
+        // Create preview for each tile in the area
+        for (let x = minX; x <= maxX; x += this.gridSystem.cellSize) {
+            for (let z = minZ; z <= maxZ; z += this.gridSystem.cellSize) {
+                const pos = { x: x, y: 0, z: z };
+                const snappedPos = this.gridSystem.snapToGrid(pos);
+                
+                // Check if position is valid
+                const checkPos = { ...snappedPos };
+                if (this.placingType === 'floor') {
+                    checkPos.y = this.currentFloor * this.gridSystem.cellSize;
+                } else {
+                    checkPos.y = this.currentFloor * this.gridSystem.cellSize + 0.5;
+                }
+                
+                const collision = this.checkCollision(checkPos, this.placingType);
+                const isValid = !collision;
+                
+                // Create outline for this tile
+                const outlineGeometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 0.02, 1));
+                const outlineMaterial = new THREE.LineBasicMaterial({ 
+                    color: isValid ? 0x00ff00 : 0xff0000,
+                    depthTest: false,
+                    depthWrite: false
+                });
+                const outline = new THREE.LineSegments(outlineGeometry, outlineMaterial);
+                outline.position.set(snappedPos.x, this.currentFloor * this.gridSystem.cellSize + 0.02, snappedPos.z);
+                outline.renderOrder = 1000;
+                this.scene.add(outline);
+                this.areaPreviewMeshes.push(outline);
+            }
+        }
+    }
+    
+    placeArea(type, startPos, endPos) {
+        // Calculate rectangle bounds
+        const minX = Math.min(startPos.x, endPos.x);
+        const maxX = Math.max(startPos.x, endPos.x);
+        const minZ = Math.min(startPos.z, endPos.z);
+        const maxZ = Math.max(startPos.z, endPos.z);
+        
+        let placedCount = 0;
+        let blockedCount = 0;
+        
+        // Place in each tile in the area
+        for (let x = minX; x <= maxX; x += this.gridSystem.cellSize) {
+            for (let z = minZ; z <= maxZ; z += this.gridSystem.cellSize) {
+                const pos = { x: x, y: 0, z: z };
+                const result = this.placeModule(type, pos);
+                if (result) {
+                    placedCount++;
+                } else {
+                    blockedCount++;
+                }
+            }
+        }
+        
+        if (placedCount > 0) {
+            this.updateStatus(`Placed ${placedCount} ${type}(s)` + (blockedCount > 0 ? `, ${blockedCount} blocked` : ''));
+        }
+        
+        // Clear area preview
+        if (this.areaPreviewMeshes) {
+            this.areaPreviewMeshes.forEach(mesh => this.scene.remove(mesh));
+            this.areaPreviewMeshes = [];
+        }
     }
     
     selectModule(module) {
         // Deselect previous
         if (this.selectedModule) {
             this.selectedModule.traverse((child) => {
-                if (child.isMesh && child.material && child.material.emissive && child.userData.originalEmissive) {
-                    child.material.emissive.copy(child.userData.originalEmissive);
+                if (child.isMesh && child.material) {
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach((mat, idx) => {
+                            const key = `originalEmissive_${idx}`;
+                            if (mat.emissive && child.userData[key]) {
+                                mat.emissive.copy(child.userData[key]);
+                            }
+                        });
+                    } else if (child.material.emissive && child.userData.originalEmissive) {
+                        child.material.emissive.copy(child.userData.originalEmissive);
+                    }
                 }
             });
             // Remove selection outline
@@ -564,11 +661,23 @@ export class SpaceshipBuilder {
         if (module) {
             // Highlight selected with emissive
             module.traverse((child) => {
-                if (child.isMesh && child.material && child.material.emissive) {
-                    if (!child.userData.originalEmissive) {
-                        child.userData.originalEmissive = child.material.emissive.clone();
+                if (child.isMesh && child.material) {
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach((mat, idx) => {
+                            if (mat.emissive) {
+                                const key = `originalEmissive_${idx}`;
+                                if (!child.userData[key]) {
+                                    child.userData[key] = mat.emissive.clone();
+                                }
+                                mat.emissive.setHex(0x444444);
+                            }
+                        });
+                    } else if (child.material.emissive) {
+                        if (!child.userData.originalEmissive) {
+                            child.userData.originalEmissive = child.material.emissive.clone();
+                        }
+                        child.material.emissive.setHex(0x444444);
                     }
-                    child.material.emissive.setHex(0x444444);
                 }
             });
             
@@ -630,10 +739,75 @@ export class SpaceshipBuilder {
         this.storage.autoSave();
     }
     
+    copySelected() {
+        if (!this.selectedModule) {
+            this.updateStatus('No module selected to copy');
+            return;
+        }
+        
+        // Serialize the selected module to clipboard
+        this.clipboard = this.serializeModule(this.selectedModule);
+        this.updateStatus(`Copied ${this.selectedModule.type} to clipboard`);
+    }
+    
+    pasteFromClipboard() {
+        if (!this.clipboard) {
+            this.updateStatus('Clipboard is empty');
+            return;
+        }
+        
+        // Create module from clipboard data
+        const module = this.createModuleFromData(this.clipboard);
+        if (!module) {
+            this.updateStatus('Failed to paste from clipboard');
+            return;
+        }
+        
+        // Offset position slightly so it's visible
+        module.position.x += 2;
+        module.position.z += 2;
+        module.uuid = THREE.MathUtils.generateUUID(); // New UUID for the copy
+        
+        // Check collision at new position
+        const collision = this.checkCollision(module.position, module.type);
+        if (collision) {
+            this.updateStatus('Cannot paste here - position occupied');
+            return;
+        }
+        
+        this.scene.add(module);
+        this.modules.push(module);
+        
+        this.selectModule(module);
+        this.saveToHistory('add', module);
+        this.updateModuleCount();
+        this.storage.autoSave();
+        this.updateStatus(`Pasted ${module.type} from clipboard`);
+    }
+    
     updateModule(module, property, value) {
         if (!module) return;
         
-        const oldValue = module[property].clone ? module[property].clone() : module[property];
+        let oldValue;
+        if (property === 'color') {
+            // Get current color from first mesh material
+            module.traverse((child) => {
+                if (child.isMesh && child.material && child.material.color) {
+                    oldValue = child.material.color.getHex();
+                    return true; // break traverse
+                }
+            });
+            if (oldValue === undefined) oldValue = 0x888888;
+        } else if (property === 'scale') {
+            // Scale is stored in params, not in Object3D.scale
+            oldValue = {
+                x: module.params.width,
+                y: module.params.height,
+                z: module.params.depth
+            };
+        } else {
+            oldValue = module[property].clone ? module[property].clone() : module[property];
+        }
         
         switch(property) {
             case 'position':
@@ -648,9 +822,17 @@ export class SpaceshipBuilder {
             case 'color':
                 module.traverse((child) => {
                     if (child.material) {
-                        child.material.color.setHex(value);
+                        if (Array.isArray(child.material)) {
+                            child.material.forEach(mat => {
+                                if (mat.color) mat.color.setHex(value);
+                            });
+                        } else if (child.material.color) {
+                            child.material.color.setHex(value);
+                        }
                     }
                 });
+                // Also update params.color for serialization
+                module.params.color = value;
                 break;
         }
         
@@ -662,14 +844,23 @@ export class SpaceshipBuilder {
         // Remove any future history if we're not at the end
         this.history = this.history.slice(0, this.historyIndex + 1);
         
-        this.history.push({
-            action,
-            moduleId: module.uuid,
-            moduleData: this.serializeModule(module),
-            timestamp: Date.now(),
-            ...data
-        });
+        let command;
+        switch(action) {
+            case 'add':
+                command = new AddCommand(this, this.serializeModule(module), module);
+                break;
+            case 'remove':
+                command = new RemoveCommand(this, module);
+                break;
+            case 'modify':
+                command = new ModifyCommand(this, module, data.property, data.oldValue, data.newValue);
+                break;
+            default:
+                console.warn('Unknown action type:', action);
+                return;
+        }
         
+        this.history.push(command);
         this.historyIndex++;
         
         // Limit history size
@@ -685,43 +876,12 @@ export class SpaceshipBuilder {
             return;
         }
         
-        const entry = this.history[this.historyIndex];
-        
-        switch(entry.action) {
-            case 'add':
-                // Undo add = remove the module
-                const moduleToRemove = this.modules.find(m => m.uuid === entry.moduleId);
-                if (moduleToRemove) {
-                    this.scene.remove(moduleToRemove);
-                    this.modules = this.modules.filter(m => m !== moduleToRemove);
-                    if (this.selectedModule === moduleToRemove) {
-                        this.selectModule(null);
-                    }
-                }
-                break;
-                
-            case 'remove':
-                // Undo remove = add the module back
-                const restoredModule = this.createModuleFromData(entry.moduleData);
-                if (restoredModule) {
-                    restoredModule.uuid = entry.moduleId; // Restore original UUID
-                    this.scene.add(restoredModule);
-                    this.modules.push(restoredModule);
-                }
-                break;
-                
-            case 'modify':
-                // Undo modify = restore old value
-                const moduleToModify = this.modules.find(m => m.uuid === entry.moduleId);
-                if (moduleToModify && entry.property) {
-                    this.applyModuleProperty(moduleToModify, entry.property, entry.oldValue);
-                }
-                break;
-        }
+        const command = this.history[this.historyIndex];
+        command.undo();
         
         this.historyIndex--;
         this.updateModuleCount();
-        this.updateStatus('Undo');
+        this.updateStatus(`Undo: ${command.getDescription()}`);
         this.storage.autoSave();
     }
     
@@ -732,42 +892,11 @@ export class SpaceshipBuilder {
         }
         
         this.historyIndex++;
-        const entry = this.history[this.historyIndex];
-        
-        switch(entry.action) {
-            case 'add':
-                // Redo add = add the module
-                const moduleToAdd = this.createModuleFromData(entry.moduleData);
-                if (moduleToAdd) {
-                    moduleToAdd.uuid = entry.moduleId;
-                    this.scene.add(moduleToAdd);
-                    this.modules.push(moduleToAdd);
-                }
-                break;
-                
-            case 'remove':
-                // Redo remove = remove the module
-                const moduleToDelete = this.modules.find(m => m.uuid === entry.moduleId);
-                if (moduleToDelete) {
-                    this.scene.remove(moduleToDelete);
-                    this.modules = this.modules.filter(m => m !== moduleToDelete);
-                    if (this.selectedModule === moduleToDelete) {
-                        this.selectModule(null);
-                    }
-                }
-                break;
-                
-            case 'modify':
-                // Redo modify = restore new value
-                const moduleToRedo = this.modules.find(m => m.uuid === entry.moduleId);
-                if (moduleToRedo && entry.property) {
-                    this.applyModuleProperty(moduleToRedo, entry.property, entry.newValue);
-                }
-                break;
-        }
+        const command = this.history[this.historyIndex];
+        command.do();
         
         this.updateModuleCount();
-        this.updateStatus('Redo');
+        this.updateStatus(`Redo: ${command.getDescription()}`);
         this.storage.autoSave();
     }
     
@@ -797,59 +926,29 @@ export class SpaceshipBuilder {
             case 'color':
                 module.traverse((child) => {
                     if (child.material) {
-                        child.material.color.setHex(value);
+                        if (Array.isArray(child.material)) {
+                            child.material.forEach(mat => {
+                                if (mat.color) mat.color.setHex(value);
+                            });
+                        } else if (child.material.color) {
+                            child.material.color.setHex(value);
+                        }
                     }
                 });
+                // Also update params.color for serialization
+                module.params.color = value;
                 break;
         }
     }
     
     serializeModule(module) {
-        return {
-            type: module.type,
-            position: module.position.toArray(),
-            rotation: module.rotation.toArray(),
-            scale: [module.params.width, module.params.height, module.params.depth],
-            color: module.children[0]?.material?.color?.getHex() || 0x888888
-        };
+        // Delegate to module's serialize method (single source of truth)
+        return module.serialize();
     }
     
     createModuleFromData(data) {
-        const { type, position, rotation, params } = data;
-        
-        let module;
-        switch(type) {
-            case 'cockpit':
-                module = new Cockpit(params);
-                break;
-            case 'engine':
-                module = new Engine(params);
-                break;
-            case 'wing':
-                module = new Wing(params);
-                break;
-            case 'cargo':
-                module = new CargoBay(params);
-                break;
-            case 'fuel':
-                module = new FuelTank(params);
-                break;
-            case 'connector':
-                module = new Connector(params);
-                break;
-            case 'habitation':
-                module = new Habitation(params);
-                break;
-            default:
-                module = new ShipModule(type, params);
-        }
-        
-        module.position.fromArray(position);
-        module.rotation.fromArray(rotation);
-        module.castShadow = true;
-        module.receiveShadow = true;
-        
-        return module;
+        // Delegate to Storage's implementation (single source of truth)
+        return this.storage.createModuleFromData(data);
     }
     
     newShip() {
@@ -860,6 +959,9 @@ export class SpaceshipBuilder {
         this.selectModule(null);
         this.gridSystem.reset();
         this.currentFloor = 0;
+        this.history = [];
+        this.historyIndex = -1;
+        this.clipboard = null;
         this.updateModuleCount();
         this.updateFloorDisplay();
         this.storage.clearAutoSave();
@@ -902,10 +1004,9 @@ export class SpaceshipBuilder {
         this.gridSystem.setCurrentFloor(floor);
         this.updateFloorDisplay();
         
-        // Show/hide modules based on floor (accounting for 0.5 offset)
+        // Show/hide modules based on stored floor property
         this.modules.forEach(module => {
-            const moduleFloor = Math.round((module.position.y - 0.5) / this.gridSystem.cellSize);
-            module.visible = (moduleFloor === floor);
+            module.visible = (module.floor === floor);
         });
     }
     

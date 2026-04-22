@@ -29,16 +29,18 @@ export class GridSystem {
         for (let floor = 0; floor < this.floors; floor++) {
             const y = floor * this.cellSize;
             
-            // Main grid (visual helper)
+            // Main grid (visual helper) - more subtle
             const gridHelper = new THREE.GridHelper(
                 Math.max(this.width, this.length),
                 Math.max(this.width, this.length),
-                0x444444,
-                0x222222
+                0x555555,  // Center lines
+                0x333333   // Grid lines
             );
             gridHelper.position.y = y;
             gridHelper.userData.floor = floor;
             gridHelper.userData.isGridHelper = true;
+            gridHelper.material.transparent = true;
+            gridHelper.material.opacity = 0.6;
             this.gridGroup.add(gridHelper);
             
             // Floor plane (for raycasting) - invisible
@@ -132,7 +134,15 @@ export class GridSystem {
             // Add below - shift everything up
             this.floors++;
             this.currentFloor++;
-            // Would need to shift all existing modules up
+            // Shift all existing modules up one floor
+            if (this.scene) {
+                this.scene.traverse((child) => {
+                    if (child.isGroup && child.floor !== undefined) {
+                        child.floor++;
+                        child.position.y += this.cellSize;
+                    }
+                });
+            }
         }
         
         this.createGrid();

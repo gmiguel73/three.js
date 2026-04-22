@@ -46,19 +46,44 @@ A Sims 4-style spaceship building game built with three.js, integrated into the 
 ## Testing
 
 ### Unit Tests
+
+Spaceship unit tests live in `Spaceship/test/unit/spaceship.tests.js` and have
+their own runner script — kept separate from the parent three.js QUnit suite
+so the demo's tests don't pollute the library's:
+
 ```bash
-npm run test-unit
+npm run test-unit-spaceship
 ```
 
+If you want CI to gate on Spaceship regressions, chain it into the top-level
+`test` script in `package.json` (currently runs lint + core + addons only).
+
 ### E2E Tests
+
+The E2E spec lives at `Spaceship/test/e2e/spaceship-builder.test.js` and is
+driven by a self-contained runner at `Spaceship/test/e2e/run.js`. The runner
+spins up the repo's static server on a free port, launches headless Chrome
+via puppeteer, and runs the suite against it.
+
 ```bash
-node test/e2e/puppeteer.js --test=spaceship
+npm run test-e2e-spaceship
 ```
+
+To watch the browser visibly (debugging the suite):
+
+```bash
+VISIBLE=1 npm run test-e2e-spaceship
+```
+
+The suite covers: page load, default-floor creation, part selection,
+placement, properties panel, dynamic scaling, color, **undo/redo (Ctrl+Z /
+Ctrl+Y)**, multi-floor, manual save, duplicate (Ctrl+D), delete, and grid
+toggle.
 
 ## File Structure
 
 ```
-editor/spaceship/
+Spaceship/
 ├── index.html
 ├── css/main.css
 ├── js/
@@ -66,8 +91,9 @@ editor/spaceship/
 │   ├── GridSystem.js
 │   ├── Controls.js
 │   ├── Storage.js
-│   ├── modules/ (7 module types)
-│   └── ui/ (3 UI components)
+│   ├── commands/   (Add / Remove / Modify command pattern for undo/redo)
+│   ├── modules/    (11 module types + registry)
+│   └── ui/         (PartInventory, PropertiesPanel, FloorManager)
 └── test/
     ├── unit/spaceship.tests.js
     └── e2e/spaceship-builder.test.js

@@ -1,7 +1,15 @@
 import * as THREE from 'three';
 import { ShipModule } from './ShipModule.js';
+import { registerModule } from './registry.js';
 
 export class FloorTile extends ShipModule {
+    static meta = {
+        name: 'Floor Tile',
+        icon: '⬜',
+        description: 'Structural floor panel',
+        hotkey: '1'
+    };
+    
     constructor(params = {}) {
         super('floor', params);
         this.build();
@@ -14,9 +22,9 @@ export class FloorTile extends ShipModule {
         const tileHeight = 0.1;
         
         const material = new THREE.MeshStandardMaterial({
-            color: color || 0x3a3f4a,
-            metalness: 0.4,
-            roughness: 0.7,
+            color: color || 0x404550,
+            metalness: 0.6,
+            roughness: 0.5,
             side: THREE.DoubleSide
         });
         
@@ -80,3 +88,6 @@ export class FloorTile extends ShipModule {
         });
     }
 }
+
+// Self-register with the module registry
+registerModule('floor', FloorTile, FloorTile.meta);

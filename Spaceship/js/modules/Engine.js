@@ -1,7 +1,15 @@
 import * as THREE from 'three';
 import { ShipModule } from './ShipModule.js';
+import { registerModule } from './registry.js';
 
 export class Engine extends ShipModule {
+    static meta = {
+        name: 'Engine',
+        icon: '🔥',
+        description: 'Propulsion system',
+        hotkey: '3'
+    };
+    
     constructor(params = {}) {
         super('engine', params);
         this.build();
@@ -97,3 +105,6 @@ export class Engine extends ShipModule {
         this.add(bracket2);
     }
 }
+
+// Self-register with the module registry
+registerModule('engine', Engine, Engine.meta);

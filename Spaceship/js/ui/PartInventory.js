@@ -1,17 +1,10 @@
+import { getModuleList } from '../modules/registry.js';
+
 export class PartInventory {
     constructor(builder) {
         this.builder = builder;
         this.container = null;
-        this.parts = [
-            { id: 'floor', name: 'Floor Tile', icon: '⬜', description: 'Structural floor panel' },
-            { id: 'cockpit', name: 'Cockpit', icon: '🚀', description: 'Command module with viewport' },
-            { id: 'engine', name: 'Engine', icon: '🔥', description: 'Propulsion system' },
-            { id: 'wing', name: 'Wing', icon: '✈️', description: 'Aerodynamic surface' },
-            { id: 'cargo', name: 'Cargo Bay', icon: '📦', description: 'Storage compartment' },
-            { id: 'fuel', name: 'Fuel Tank', icon: '⛽', description: 'Fuel storage' },
-            { id: 'connector', name: 'Connector', icon: '🔗', description: 'Universal joint' },
-            { id: 'habitation', name: 'Habitation', icon: '🏠', description: 'Crew quarters' }
-        ];
+        this.parts = getModuleList();
     }
     
     init() {

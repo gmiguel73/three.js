@@ -1,7 +1,15 @@
 import * as THREE from 'three';
 import { ShipModule } from './ShipModule.js';
+import { registerModule } from './registry.js';
 
 export class FuelTank extends ShipModule {
+    static meta = {
+        name: 'Fuel Tank',
+        icon: '⛽',
+        description: 'Fuel storage',
+        hotkey: '6'
+    };
+
     constructor(params = {}) {
         super('fuel', params);
         this.build();
@@ -103,3 +111,5 @@ export class FuelTank extends ShipModule {
         }
     }
 }
+// Self-register with the module registry
+registerModule('fuel', FuelTank, FuelTank.meta);

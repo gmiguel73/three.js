@@ -45,6 +45,11 @@ export class ShipModule extends THREE.Group {
     }
     
     setScale(width, height, depth) {
+        // Guard against NaN from empty inputs
+        width = Number.isFinite(width) ? width : 1;
+        height = Number.isFinite(height) ? height : 1;
+        depth = Number.isFinite(depth) ? depth : 1;
+        
         this.params.width = Math.max(1, Math.min(10, width));
         this.params.height = Math.max(1, Math.min(10, height));
         this.params.depth = Math.max(1, Math.min(10, depth));
@@ -74,6 +79,7 @@ export class ShipModule extends THREE.Group {
             type: this.type,
             position: this.position.toArray(),
             rotation: this.rotation.toArray(),
+            floor: this.floor || 0,
             params: this.params
         };
     }

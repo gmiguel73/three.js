@@ -1,7 +1,15 @@
 import * as THREE from 'three';
 import { ShipModule } from './ShipModule.js';
+import { registerModule } from './registry.js';
 
 export class Wing extends ShipModule {
+    static meta = {
+        name: 'Wing',
+        icon: '✈️',
+        description: 'Aerodynamic surface',
+        hotkey: '4'
+    };
+    
     constructor(params = {}) {
         super('wing', params);
         this.build();
@@ -95,3 +103,5 @@ export class Wing extends ShipModule {
         this.add(mount);
     }
 }
+
+registerModule('wing', Wing, Wing.meta);

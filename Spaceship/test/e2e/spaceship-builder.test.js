@@ -1,107 +1,183 @@
 /**
- * E2E Tests for Spaceship Builder
- * Run with: node test/e2e/puppeteer.js --test=spaceship
+ * E2E Tests for Spaceship Builder.
+ *
+ * Run via: npm run test-e2e-spaceship
+ *
+ * The exported test function is invoked by ./run.js; it expects a puppeteer
+ * Page and a baseUrl (the host:port the dev server is listening on).
  */
 
-export async function testSpaceshipBuilder(page) {
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function getModuleCount(page) {
+    return parseInt(await page.$eval('#module-count', (el) => el.textContent), 10);
+}
+
+export async function testSpaceshipBuilder(page, { baseUrl = 'http://localhost:8080' } = {}) {
     console.log('\n=== Spaceship Builder E2E Tests ===\n');
-    
-    // Navigate to the builder
-    await page.goto('http://localhost:8080/editor/spaceship/', { waitUntil: 'networkidle0' });
-    console.log('✓ Page loaded');
-    
-    // Wait for the 3D scene to initialize
+
+    // Guarantee a clean slate before any app code runs and dismiss any
+    // confirm() dialogs (newShip, autosave-load) without manual intervention.
+    await page.evaluateOnNewDocument(() => localStorage.clear());
+    page.on('dialog', (dialog) => dialog.dismiss().catch(() => {}));
+
+    // Page load
+    await page.goto(`${baseUrl}/Spaceship/`, { waitUntil: 'networkidle0' });
     await page.waitForSelector('#viewport canvas', { timeout: 10000 });
-    console.log('✓ 3D viewport initialized');
-    
-    // Test 1: Part selection
+    await wait(500);  // let SpaceshipBuilder.init() finish createDefaultFloor()
+    console.log('✓ Page loaded');
+
+    const initialCount = await getModuleCount(page);
+    if (initialCount !== 25) {
+        throw new Error(`Expected 25 floor tiles after init, got ${initialCount}`);
+    }
+    console.log(`✓ Default 5x5 floor created (count = ${initialCount})`);
+
+    // Part selection
     await page.click('[data-part-type="cockpit"]');
-    await page.waitForTimeout(500);
-    const isSelected = await page.$eval('[data-part-type="cockpit"]', el => el.classList.contains('selected'));
+    await wait(200);
+    const isSelected = await page.$eval(
+        '[data-part-type="cockpit"]',
+        (el) => el.classList.contains('selected')
+    );
     if (!isSelected) throw new Error('Part selection failed');
     console.log('✓ Part selection works');
-    
-    // Test 2: Module placement
+
+    // Module placement
     const canvas = await page.$('#viewport canvas');
     const box = await canvas.boundingBox();
-    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-    await page.waitForTimeout(500);
-    
-    const moduleCount = await page.$eval('#module-count', el => el.textContent);
-    if (moduleCount !== '1') throw new Error(`Expected 1 module, got ${moduleCount}`);
+    const centerX = box.x + box.width / 2;
+    const centerY = box.y + box.height / 2;
+
+    await page.mouse.click(centerX, centerY);
+    await wait(300);
+    if (await getModuleCount(page) !== initialCount + 1) {
+        throw new Error(`Expected ${initialCount + 1} after place, got ${await getModuleCount(page)}`);
+    }
     console.log('✓ Module placement works');
-    
-    // Test 3: Properties panel
-    const propertiesVisible = await page.$eval('#module-properties', el => el.style.display !== 'none');
+
+    // Properties panel becomes visible after place (selectModule is called)
+    const propertiesVisible = await page.$eval(
+        '#module-properties',
+        (el) => el.style.display !== 'none'
+    );
     if (!propertiesVisible) throw new Error('Properties panel not visible');
     console.log('✓ Properties panel shows on selection');
-    
-    // Test 4: Scaling (dynamic update)
-    await page.$eval('#scale-x', el => { 
-        el.value = '4'; 
-        el.dispatchEvent(new Event('change', { bubbles: true })); 
+
+    // Scaling (dynamic geometry rebuild)
+    await page.$eval('#scale-x', (el) => {
+        el.value = '4';
+        el.dispatchEvent(new Event('change', { bubbles: true }));
     });
-    await page.waitForTimeout(500);
-    const scaleValue = await page.$eval('#scale-x', el => el.value);
-    if (scaleValue !== '4') throw new Error('Scaling failed');
-    console.log('✓ Module scaling works (with dynamic rebuild)');
-    
-    // Test 5: Color change
-    await page.$eval('#color-picker', el => {
+    await wait(200);
+    const scaleValue = await page.$eval('#scale-x', (el) => el.value);
+    if (scaleValue !== '4') throw new Error(`Scale-x expected 4, got ${scaleValue}`);
+    console.log('✓ Module scaling works (dynamic rebuild)');
+
+    // Color change
+    await page.$eval('#color-picker', (el) => {
         el.value = '#ff0000';
         el.dispatchEvent(new Event('change', { bubbles: true }));
     });
-    await page.waitForTimeout(300);
+    await wait(200);
     console.log('✓ Color picker works');
-    
-    // Test 6: Floor management
+
+    // Undo / Redo regression — this is the regression net for the
+    // AddCommand bug where the first undo silently no-op'd.
+    {
+        const before = await getModuleCount(page);
+        await page.mouse.click(centerX + 60, centerY);  // adjacent grid cell
+        await wait(300);
+        const afterPlace = await getModuleCount(page);
+        if (afterPlace !== before + 1) {
+            throw new Error(`Place inside undo block: expected ${before + 1}, got ${afterPlace}`);
+        }
+
+        await page.keyboard.down('Control');
+        await page.keyboard.press('z');
+        await page.keyboard.up('Control');
+        await wait(200);
+        if (await getModuleCount(page) !== before) {
+            throw new Error('Ctrl+Z did not remove the last placement');
+        }
+
+        await page.keyboard.down('Control');
+        await page.keyboard.press('y');
+        await page.keyboard.up('Control');
+        await wait(200);
+        if (await getModuleCount(page) !== before + 1) {
+            throw new Error('Ctrl+Y did not restore the placement');
+        }
+        console.log('✓ Undo/redo works for module placement (Ctrl+Z / Ctrl+Y)');
+
+        // Leave state clean for next block
+        await page.keyboard.down('Control');
+        await page.keyboard.press('z');
+        await page.keyboard.up('Control');
+        await wait(200);
+    }
+
+    // Multi-floor: add a floor above
     await page.click('#add-floor-above');
-    await page.waitForTimeout(300);
-    const floorCount = await page.$eval('#floor-count', el => el.textContent);
+    await wait(200);
+    const floorCount = await page.$eval('#floor-count', (el) => el.textContent);
     if (floorCount !== '2') throw new Error(`Expected 2 floors, got ${floorCount}`);
     console.log('✓ Multi-floor support works');
-    
-    // Test 7: Floor switching
+
+    // Floor switching
     await page.click('.floor-item[data-floor="1"]');
-    await page.waitForTimeout(300);
-    const activeFloor = await page.$eval('.floor-item.active', el => el.dataset.floor);
+    await wait(200);
+    const activeFloor = await page.$eval('.floor-item.active', (el) => el.dataset.floor);
     if (activeFloor !== '1') throw new Error('Floor switching failed');
     console.log('✓ Floor switching works');
-    
-    // Test 8: Save to localStorage
-    await page.click('#menu-file-save');
-    await page.waitForTimeout(300);
-    const saved = await page.evaluate(() => localStorage.getItem('spaceship-builder-save') !== null);
-    if (!saved) throw new Error('Save to localStorage failed');
-    console.log('✓ localStorage save works');
-    
-    // Test 9: Duplicate module
+
+    // Switch back to floor 0 for the remaining tests
+    await page.click('.floor-item[data-floor="0"]');
+    await wait(100);
+
+    // Manual save to localStorage
+    await page.click('#btn-save');
+    await wait(200);
+    const saved = await page.evaluate(
+        () => localStorage.getItem('spaceship-builder-save') !== null
+    );
+    if (!saved) throw new Error('Manual save did not write to localStorage');
+    console.log('✓ Manual save works');
+
+    // The previous blocks left us in placing mode (single click only places,
+    // it doesn't stop), and the Ctrl+Z chain inside the undo block cleared
+    // the selection. Press Escape to exit placing mode and reset selection,
+    // then click the cockpit to select it for duplicate.
+    await page.keyboard.press('Escape');
+    await wait(100);
+    await page.mouse.click(centerX, centerY);
+    await wait(200);
+
+    // Duplicate (Ctrl+D)
+    const beforeDup = await getModuleCount(page);
     await page.keyboard.down('Control');
     await page.keyboard.press('d');
     await page.keyboard.up('Control');
-    await page.waitForTimeout(300);
-    const moduleCountAfterDup = await page.$eval('#module-count', el => el.textContent);
-    if (moduleCountAfterDup !== '2') throw new Error(`Expected 2 modules after duplicate, got ${moduleCountAfterDup}`);
+    await wait(300);
+    if (await getModuleCount(page) !== beforeDup + 1) {
+        throw new Error(`Ctrl+D did not duplicate (count was ${beforeDup}, now ${await getModuleCount(page)})`);
+    }
     console.log('✓ Duplicate (Ctrl+D) works');
-    
-    // Test 10: Delete module
+
+    // Delete the duplicate
+    const beforeDel = await getModuleCount(page);
     await page.keyboard.press('Delete');
-    await page.waitForTimeout(300);
-    const moduleCountAfterDel = await page.$eval('#module-count', el => el.textContent);
-    if (moduleCountAfterDel !== '1') throw new Error(`Expected 1 module after delete, got ${moduleCountAfterDel}`);
+    await wait(200);
+    if (await getModuleCount(page) !== beforeDel - 1) {
+        throw new Error('Delete key did not remove module');
+    }
     console.log('✓ Delete (Del key) works');
-    
-    // Test 11: Grid toggle
-    await page.click('#menu-view-grid');
-    await page.waitForTimeout(200);
+
+    // Grid toggle
+    await page.click('#btn-grid');
+    await wait(100);
     console.log('✓ Grid toggle works');
-    
-    // Test 12: Camera reset
-    await page.click('#menu-view-reset-camera');
-    await page.waitForTimeout(200);
-    console.log('✓ Camera reset works');
-    
-    console.log('\n✅ All 12 E2E tests passed!\n');
-    
+
+    console.log('\n✅ All E2E tests passed!\n');
     return true;
 }

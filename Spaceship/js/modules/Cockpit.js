@@ -1,7 +1,15 @@
 import * as THREE from 'three';
 import { ShipModule } from './ShipModule.js';
+import { registerModule } from './registry.js';
 
 export class Cockpit extends ShipModule {
+    static meta = {
+        name: 'Cockpit',
+        icon: '🚀',
+        description: 'Command module with viewport',
+        hotkey: '2'
+    };
+    
     constructor(params = {}) {
         super('cockpit', params);
         this.build();
@@ -89,3 +97,6 @@ export class Cockpit extends ShipModule {
         this.add(viewport);
     }
 }
+
+// Self-register with the module registry
+registerModule('cockpit', Cockpit, Cockpit.meta);

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { getHotkeyMap } from './modules/registry.js';
 
 export class Controls {
     constructor(builder) {
@@ -6,6 +7,8 @@ export class Controls {
         this.raycaster = new THREE.Raycaster();
         this.mouse = new THREE.Vector2();
         this.isMouseDown = false;
+        this.dragStartGridPos = null;
+        this.isDragging = false;
     }
     
     init() {
@@ -24,12 +27,36 @@ export class Controls {
     onMouseDown(event) {
         this.isMouseDown = true;
         this.hasDragged = false;
+        this.isDragging = false;
         this.dragStartX = event.clientX;
         this.dragStartY = event.clientY;
+        
+        // Store the grid position where drag started
+        this.updateMousePosition(event);
+        const intersect = this.getGridIntersection();
+        if (intersect && this.builder.isPlacing) {
+            const gridPos = this.builder.gridSystem.snapToGrid(intersect.point);
+            this.dragStartGridPos = { x: gridPos.x, z: gridPos.z };
+            // Disable camera controls while dragging to define area
+            this.builder.controls.enabled = false;
+        }
     }
     
     onMouseUp(event) {
+        if (this.isDragging && this.dragStartGridPos && this.builder.isPlacing) {
+            // Area placement mode - place in all tiles in the rectangle
+            this.updateMousePosition(event);
+            const intersect = this.getGridIntersection();
+            if (intersect) {
+                const endGridPos = this.builder.gridSystem.snapToGrid(intersect.point);
+                this.builder.placeArea(this.builder.placingType, this.dragStartGridPos, { x: endGridPos.x, z: endGridPos.z });
+            }
+        }
+        // Re-enable camera controls
+        this.builder.controls.enabled = true;
         this.isMouseDown = false;
+        this.isDragging = false;
+        this.dragStartGridPos = null;
     }
     
     onMouseMove(event) {
@@ -38,6 +65,7 @@ export class Controls {
             const dy = Math.abs(event.clientY - this.dragStartY);
             if (dx > 3 || dy > 3) {
                 this.hasDragged = true;
+                this.isDragging = true;
             }
         }
         
@@ -50,14 +78,21 @@ export class Controls {
             
             // Update preview position if in placing mode
             if (this.builder.isPlacing) {
-                this.builder.updatePreview(intersect.point);
+                if (this.isDragging && this.dragStartGridPos) {
+                    // Area placement mode - show area preview
+                    const currentGridPos = this.builder.gridSystem.snapToGrid(intersect.point);
+                    this.builder.updateAreaPreview(this.dragStartGridPos, { x: currentGridPos.x, z: currentGridPos.z });
+                } else {
+                    // Single tile preview
+                    this.builder.updatePreview(intersect.point);
+                }
             }
         }
     }
     
     onClick(event) {
-        // Don't process clicks if we were dragging
-        if (this.isMouseDown && this.hasDragged) {
+        // Don't process clicks if we were dragging for area placement
+        if (this.hasDragged) {
             this.hasDragged = false;
             return;
         }
@@ -65,7 +100,7 @@ export class Controls {
         this.updateMousePosition(event);
         
         if (this.builder.isPlacing) {
-            // Place module on grid
+            // Single tile placement mode
             const intersect = this.getGridIntersection();
             if (intersect) {
                 this.builder.placeModule(this.builder.placingType, intersect.point);
@@ -99,6 +134,10 @@ export class Controls {
             this.builder.stopPlacing();
             this.builder.selectModule(null);
             this.builder.ui.inventory.clearSelection();
+            // Re-enable camera controls
+            this.builder.controls.enabled = true;
+            this.isDragging = false;
+            this.dragStartGridPos = null;
         }
         
         // Delete - remove selected (only if not in input field)
@@ -126,14 +165,23 @@ export class Controls {
             this.builder.duplicateSelected();
         }
         
-        // Number keys 1-7 - quick select parts (only if not in input field)
+        // Ctrl/Cmd + C - Copy (only if not in input field)
+        if (!isInputField && (event.ctrlKey || event.metaKey) && event.key === 'c') {
+            event.preventDefault();
+            this.builder.copySelected();
+        }
+        
+        // Ctrl/Cmd + V - Paste (only if not in input field)
+        if (!isInputField && (event.ctrlKey || event.metaKey) && event.key === 'v') {
+            event.preventDefault();
+            this.builder.pasteFromClipboard();
+        }
+        
+        // Number keys and hotkeys - quick select parts (only if not in input field)
         if (!isInputField) {
-            const num = parseInt(event.key);
-            if (num >= 1 && num <= 7) {
-                const parts = ['cockpit', 'engine', 'wing', 'cargo', 'fuel', 'connector', 'habitation'];
-                if (parts[num - 1]) {
-                    this.builder.ui.inventory.selectPart(parts[num - 1]);
-                }
+            const hotkeyMap = getHotkeyMap();
+            if (hotkeyMap[event.key]) {
+                this.builder.ui.inventory.selectPart(hotkeyMap[event.key]);
             }
         }
     }
@@ -159,9 +207,12 @@ export class Controls {
     getModuleIntersection() {
         this.raycaster.setFromCamera(this.mouse, this.builder.camera);
         
-        // Get all meshes in the scene that are part of modules
+        // Get all meshes in the scene that are part of VISIBLE modules only
         const moduleMeshes = [];
         this.builder.modules.forEach(module => {
+            // Skip invisible modules (on other floors)
+            if (!module.visible) return;
+            
             module.traverse((child) => {
                 if (child.isMesh) {
                     moduleMeshes.push(child);

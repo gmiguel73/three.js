@@ -1,11 +1,4 @@
-import { Cockpit } from './modules/Cockpit.js';
-import { Engine } from './modules/Engine.js';
-import { Wing } from './modules/Wing.js';
-import { CargoBay } from './modules/CargoBay.js';
-import { FuelTank } from './modules/FuelTank.js';
-import { Connector } from './modules/Connector.js';
-import { Habitation } from './modules/Habitation.js';
-import { FloorTile } from './modules/FloorTile.js';
+import { createModule } from './modules/registry.js';
 
 export class Storage {
     constructor(builder) {
@@ -163,46 +156,35 @@ export class Storage {
             this.builder.setCurrentFloor(data.currentFloor);
         }
         
+        // Reset history
+        this.builder.history = [];
+        this.builder.historyIndex = -1;
+        
         this.builder.updateModuleCount();
         this.builder.updateFloorDisplay();
     }
     
     createModuleFromData(data) {
-        const { type, position, rotation, params } = data;
+        const { type, position, rotation, params, floor } = data;
         
-        let module;
-        switch(type) {
-            case 'cockpit':
-                module = new Cockpit(params);
-                break;
-            case 'engine':
-                module = new Engine(params);
-                break;
-            case 'wing':
-                module = new Wing(params);
-                break;
-            case 'cargo':
-                module = new CargoBay(params);
-                break;
-            case 'fuel':
-                module = new FuelTank(params);
-                break;
-            case 'connector':
-                module = new Connector(params);
-                break;
-            case 'habitation':
-                module = new Habitation(params);
-                break;
-            case 'floor':
-                module = new FloorTile(params);
-                break;
-            default:
-                console.warn('Unknown module type:', type);
-                return null;
+        const module = createModule(type, params);
+        if (!module) {
+            console.warn('Unknown module type:', type);
+            return null;
         }
         
         module.position.fromArray(position);
         module.rotation.fromArray(rotation);
+        // Use stored floor, or calculate from Y position for backwards compatibility
+        if (floor !== undefined) {
+            module.floor = floor;
+        } else {
+            // Legacy save: calculate floor from Y position
+            const cellSize = this.builder.gridSystem.cellSize;
+            module.floor = type === 'floor' 
+                ? Math.round(position[1] / cellSize)
+                : Math.round((position[1] - 0.5) / cellSize);
+        }
         module.castShadow = true;
         module.receiveShadow = true;
         
