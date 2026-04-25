@@ -15,7 +15,7 @@ export class CargoBay extends ShipModule {
         this.build();
     }
     
-    build() {
+    buildProcedural() {
         const { width, height, depth, color } = this.params;
         const wallThickness = 0.1;
         

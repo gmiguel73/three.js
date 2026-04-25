@@ -7,10 +7,11 @@ import { Wing } from '../../js/modules/Wing.js';
 import { CargoBay } from '../../js/modules/CargoBay.js';
 import { FuelTank } from '../../js/modules/FuelTank.js';
 import { FloorTile } from '../../js/modules/FloorTile.js';
-import { getModuleMeta, createModule } from '../../js/modules/registry.js';
+import { getModuleMeta, createModule, registerModule } from '../../js/modules/registry.js';
 import { AddCommand } from '../../js/commands/AddCommand.js';
 import { RemoveCommand } from '../../js/commands/RemoveCommand.js';
 import { ModifyCommand } from '../../js/commands/ModifyCommand.js';
+import { AssetLibrary } from '../../js/assets/AssetLibrary.js';
 
 // Side-effect imports — populate MODULE_REGISTRY with the remaining modules
 // not already imported as named bindings above. main.js does the same.
@@ -370,6 +371,316 @@ QUnit.module('Spaceship Builder', () => {
             assert.equal(module.params.width, 1, 'NaN width defaults to 1');
             assert.equal(module.params.height, 1, 'Infinity height defaults to 1');
             assert.equal(module.params.depth, 1, '-Infinity depth defaults to 1');
+        });
+    });
+
+    QUnit.module('Module Assets', (hooks) => {
+
+        // Each test gets a clean library + a stub loader/fetcher so we never
+        // touch the network or the disk. Keep the originals so we restore
+        // them after the suite — other modules of this file rely on the
+        // singleton being usable.
+        let originalLoader;
+        let originalFetcher;
+
+        hooks.beforeEach(() => {
+            originalLoader = AssetLibrary._loader;
+            originalFetcher = AssetLibrary._fetch;
+            AssetLibrary.reset();
+        });
+
+        hooks.afterEach(() => {
+            AssetLibrary.setLoader(originalLoader);
+            AssetLibrary.setFetcher(originalFetcher);
+            AssetLibrary.reset();
+        });
+
+        function fakeLoader(sceneFactory) {
+            return {
+                callCount: 0,
+                load(url, onLoad) {
+                    this.callCount++;
+                    Promise.resolve().then(() => onLoad({ scene: sceneFactory(url) }));
+                }
+            };
+        }
+
+        function makeAssetMesh(materialName) {
+            const mat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+            mat.name = materialName;
+            return new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), mat);
+        }
+
+        QUnit.test('AssetLibrary.getManifest caches and dedupes', async (assert) => {
+            let calls = 0;
+            const manifest = { parts: { hull: { default: 'h1', variants: { h1: {} } } } };
+            AssetLibrary.setFetcher(async () => {
+                calls++;
+                return manifest;
+            });
+
+            const [m1, m2] = await Promise.all([
+                AssetLibrary.getManifest('cockpit'),
+                AssetLibrary.getManifest('cockpit')
+            ]);
+
+            assert.strictEqual(m1, manifest, 'first call returns the manifest');
+            assert.strictEqual(m2, manifest, 'second call returns the same manifest');
+            assert.equal(calls, 1, 'fetcher was called only once for concurrent requests');
+
+            await AssetLibrary.getManifest('cockpit');
+            assert.equal(calls, 1, 'fetcher still only called once on later request');
+        });
+
+        QUnit.test('AssetLibrary.getManifest evicts cache entry on failure so callers can retry', async (assert) => {
+            let calls = 0;
+            AssetLibrary.setFetcher(async () => {
+                calls++;
+                if (calls === 1) throw new Error('boom');
+                return { parts: {} };
+            });
+
+            await assert.rejects(AssetLibrary.getManifest('cockpit'), /boom/, 'first call rejects');
+
+            const ok = await AssetLibrary.getManifest('cockpit');
+            assert.deepEqual(ok, { parts: {} }, 'second call succeeds after retry');
+            assert.equal(calls, 2, 'fetcher invoked twice across the failure boundary');
+        });
+
+        QUnit.test('AssetLibrary.loadVariant caches the parsed scene and clones per-call', async (assert) => {
+            const loader = fakeLoader(() => makeAssetMesh('glass'));
+            AssetLibrary.setLoader(loader);
+
+            const a = await AssetLibrary.loadVariant('cockpit', 'canopy', 'canopy_dome');
+            const b = await AssetLibrary.loadVariant('cockpit', 'canopy', 'canopy_dome');
+
+            assert.equal(loader.callCount, 1, 'underlying loader.load called only once');
+            assert.notStrictEqual(a, b, 'callers receive distinct Object3D instances');
+            // SkeletonUtils.clone deliberately shares materials and geometry so
+            // multiple module instances share GPU buffers — that's the design.
+            // What must be independent is the transform.
+            a.position.set(7, 0, 0);
+            assert.equal(b.position.x, 0, 'transforms on clones are independent');
+            assert.strictEqual(a.material, b.material, 'materials are shared (per AssetLibrary spec)');
+        });
+
+        QUnit.test('AssetLibrary.loadModuleParts falls back to default and surfaces unknown variants', async (assert) => {
+            const manifest = {
+                parts: {
+                    hull: {
+                        default: 'hull_classic',
+                        variants: {
+                            hull_classic: { displayName: 'Classic' },
+                            hull_blunt: { displayName: 'Blunt' }
+                        }
+                    }
+                }
+            };
+            AssetLibrary.setFetcher(async () => manifest);
+            const loader = fakeLoader((url) => {
+                const mesh = makeAssetMesh('hull');
+                mesh.userData._url = url;
+                return mesh;
+            });
+            AssetLibrary.setLoader(loader);
+
+            const defaulted = await AssetLibrary.loadModuleParts('cockpit', {});
+            assert.equal(defaulted.hull.variantName, 'hull_classic', 'falls back to manifest default');
+            assert.ok(defaulted.hull.scene, 'scene present');
+
+            AssetLibrary.reset();
+            AssetLibrary.setFetcher(async () => manifest);
+            AssetLibrary.setLoader(loader);
+            const picked = await AssetLibrary.loadModuleParts('cockpit', { hull: 'hull_blunt' });
+            assert.equal(picked.hull.variantName, 'hull_blunt', 'honours explicit pick');
+
+            AssetLibrary.reset();
+            AssetLibrary.setFetcher(async () => manifest);
+            AssetLibrary.setLoader(loader);
+            await assert.rejects(
+                AssetLibrary.loadModuleParts('cockpit', { hull: 'does_not_exist' }),
+                /Unknown variant/,
+                'unknown variant rejects'
+            );
+        });
+
+        QUnit.test('ShipModule.parts and ready are initialised on bare modules', (assert) => {
+            const m = new ShipModule('test');
+            assert.deepEqual(m.parts, {}, 'parts map is empty');
+            assert.ok(m.ready instanceof Promise, 'ready is a Promise');
+        });
+
+        QUnit.test('build() default placeholder is tagged so removePlaceholders strips it', (assert) => {
+            const m = new ShipModule('test');
+            m.build();
+            assert.equal(m.children.length, 1, 'placeholder mesh added');
+            assert.ok(m.children[0].userData.placeholder, 'tagged as placeholder');
+
+            m.removePlaceholders();
+            assert.equal(m.children.length, 0, 'placeholder removed');
+        });
+
+        QUnit.test('removePlaceholders preserves permanent procedural detail', (assert) => {
+            const m = new ShipModule('test');
+            m.buildProcedural();  // adds the default tagged box
+            const permanent = new THREE.Mesh(
+                new THREE.BoxGeometry(0.1, 0.1, 0.1),
+                new THREE.MeshStandardMaterial({ color: 0x123456 })
+            );
+            m.add(permanent);
+
+            m.removePlaceholders();
+
+            assert.equal(m.children.length, 1, 'one child remains');
+            assert.strictEqual(m.children[0], permanent, 'permanent detail kept');
+        });
+
+        QUnit.test('asset-enabled subclass swaps placeholder for loaded asset parts', async (assert) => {
+            class FakeAssetModule extends ShipModule {
+                static assets = { parts: { hull: {} } };
+                constructor(params = {}) {
+                    super('fake_asset_module', params);
+                    this.build();
+                }
+            }
+
+            AssetLibrary.setFetcher(async () => ({
+                parts: { hull: { default: 'h1', variants: { h1: { displayName: 'H1' } } } }
+            }));
+            AssetLibrary.setLoader(fakeLoader(() => makeAssetMesh('hull_outer')));
+
+            const m = new FakeAssetModule();
+            assert.equal(m.children.length, 1, 'starts with procedural placeholder');
+            assert.ok(m.children[0].userData.placeholder, 'placeholder is tagged');
+
+            await m.ready;
+
+            assert.equal(m.children.length, 1, 'ends with one asset-part group');
+            assert.ok(m.children[0].userData.assetPart, 'child group is marked as an asset part');
+            assert.ok(m.parts.hull, 'module.parts.hull is populated');
+            assert.equal(m.parts.hull.userData.variant, 'h1', 'variant name recorded');
+        });
+
+        QUnit.test('asset load failure leaves the procedural placeholder visible', async (assert) => {
+            class BrokenAssetModule extends ShipModule {
+                static assets = { parts: { hull: {} } };
+                constructor(params = {}) {
+                    super('broken_asset_module', params);
+                    this.build();
+                }
+            }
+
+            AssetLibrary.setFetcher(async () => { throw new Error('no manifest'); });
+
+            const originalWarn = console.warn;
+            console.warn = () => {};
+
+            try {
+                const m = new BrokenAssetModule();
+                await m.ready;
+                assert.equal(m.children.length, 1, 'placeholder still in place');
+                assert.ok(m.children[0].userData.placeholder, 'still flagged as placeholder');
+                assert.deepEqual(m.parts, {}, 'no asset parts populated');
+            } finally {
+                console.warn = originalWarn;
+            }
+        });
+
+        QUnit.test('setColor only tints asset materials whose name is in the variant tintable list', async (assert) => {
+            class TintTestModule extends ShipModule {
+                static assets = { parts: { hull: {} } };
+                constructor(params = {}) {
+                    super('tint_test_module', params);
+                    this.build();
+                }
+                buildProcedural() {
+                    // No procedural geometry — keep the test focused on asset tinting.
+                }
+            }
+
+            AssetLibrary.setFetcher(async () => ({
+                parts: {
+                    hull: {
+                        default: 'h1',
+                        variants: {
+                            h1: { displayName: 'H1', tintable: ['glass'] }
+                        }
+                    }
+                }
+            }));
+
+            // Build a scene with two materials: one tintable ("glass"), one not ("metal").
+            AssetLibrary.setLoader({
+                load(url, onLoad) {
+                    const root = new THREE.Group();
+                    const glass = new THREE.MeshStandardMaterial({ color: 0xffffff });
+                    glass.name = 'glass';
+                    const metal = new THREE.MeshStandardMaterial({ color: 0xff00ff });
+                    metal.name = 'metal';
+                    root.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), glass));
+                    root.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), metal));
+                    Promise.resolve().then(() => onLoad({ scene: root }));
+                }
+            });
+
+            const m = new TintTestModule({ color: 0x00ff00 });
+            await m.ready;
+
+            const mats = [];
+            m.parts.hull.traverse((c) => { if (c.material) mats.push(c.material); });
+            const glassMat = mats.find((mat) => mat.name === 'glass');
+            const metalMat = mats.find((mat) => mat.name === 'metal');
+
+            assert.ok(glassMat, 'glass material present');
+            assert.ok(metalMat, 'metal material present');
+            assert.equal(glassMat.color.getHex(), 0x00ff00, 'glass tinted to params.color');
+            assert.equal(metalMat.color.getHex(), 0xff00ff, 'metal preserved (not in tintable list)');
+
+            // Subsequent setColor calls re-tint asset parts without touching non-tintable materials.
+            m.setColor(0x0000ff);
+            await Promise.resolve();
+            await Promise.resolve();
+            const glassMatAfter = [];
+            m.parts.hull.traverse((c) => { if (c.material && c.material.name === 'glass') glassMatAfter.push(c.material); });
+            const metalMatAfter = [];
+            m.parts.hull.traverse((c) => { if (c.material && c.material.name === 'metal') metalMatAfter.push(c.material); });
+            assert.equal(glassMatAfter[0].color.getHex(), 0x0000ff, 'glass re-tinted by setColor');
+            assert.equal(metalMatAfter[0].color.getHex(), 0xff00ff, 'metal still preserved after setColor');
+        });
+
+        QUnit.test('serialize round-trips params.parts through createModule', (assert) => {
+            const original = new Cockpit({ width: 2, height: 2, depth: 2 });
+            original.params.parts = { hull: 'hull_blunt', canopy: 'canopy_slit' };
+
+            const data = original.serialize();
+            assert.deepEqual(
+                data.params.parts,
+                { hull: 'hull_blunt', canopy: 'canopy_slit' },
+                'parts present in serialized payload'
+            );
+
+            const restored = createModule(data.type, data.params);
+            assert.deepEqual(
+                restored.params.parts,
+                { hull: 'hull_blunt', canopy: 'canopy_slit' },
+                'restored module owns the same parts map'
+            );
+            assert.notStrictEqual(
+                restored.params.parts,
+                data.params.parts,
+                'restored parts is a fresh object (no shared ref with serialized payload)'
+            );
+        });
+
+        QUnit.test('clone() deep-copies params.parts so siblings cannot bleed into each other', (assert) => {
+            const a = new Cockpit({ width: 2, height: 2, depth: 2 });
+            a.params.parts = { hull: 'hull_classic' };
+
+            const b = a.clone();
+            b.params.parts.hull = 'hull_blunt';
+
+            assert.equal(a.params.parts.hull, 'hull_classic', 'original unchanged after mutating clone');
+            assert.equal(b.params.parts.hull, 'hull_blunt', 'clone has its own value');
         });
     });
 

@@ -15,7 +15,7 @@ export class FloorTile extends ShipModule {
         this.build();
     }
     
-    build() {
+    buildProcedural() {
         const { width, height, depth, color } = this.params;
         
         // Floor tiles are flat (height is minimal)

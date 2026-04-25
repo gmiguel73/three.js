@@ -15,7 +15,7 @@ export class Connector extends ShipModule {
         this.build();
     }
     
-    build() {
+    buildProcedural() {
         const { width, height, depth, color } = this.params;
         const size = Math.min(width, height, depth);
         

@@ -1,7 +1,13 @@
+import { AssetLibrary } from '../assets/AssetLibrary.js';
+
 export class PropertiesPanel {
     constructor(builder) {
         this.builder = builder;
         this.currentModule = null;
+        // Bumped each time showModule() is called so a slow manifest fetch
+        // for a previously-selected module can't overwrite the variant UI
+        // for the module the user is now looking at.
+        this._renderToken = 0;
     }
     
     init() {
@@ -69,10 +75,75 @@ export class PropertiesPanel {
         // Update color
         const color = module.params.color || 0x888888;
         document.getElementById('color-picker').value = '#' + color.toString(16).padStart(6, '0');
+
+        this.renderVariantSelectors(module);
     }
-    
+
+    renderVariantSelectors(module) {
+        const container = document.getElementById('part-variants');
+        if (!container) return;
+        container.innerHTML = '';
+
+        const decl = module.constructor.assets;
+        if (!decl || !decl.parts) return;
+
+        const token = ++this._renderToken;
+
+        AssetLibrary.getManifest(module.type).then((manifest) => {
+            // Bail if the user selected something else (or nothing) before the
+            // manifest came back, otherwise we'd render dropdowns for the
+            // wrong module.
+            if (token !== this._renderToken) return;
+            if (this.currentModule !== module) return;
+
+            for (const partName of Object.keys(decl.parts)) {
+                const partManifest = manifest.parts && manifest.parts[partName];
+                if (!partManifest || !partManifest.variants) continue;
+                container.appendChild(this._buildVariantRow(module, partName, partManifest));
+            }
+        }).catch((err) => {
+            console.warn('[PropertiesPanel] no manifest for', module.type, err);
+        });
+    }
+
+    _buildVariantRow(module, partName, partManifest) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'property-group';
+
+        const label = document.createElement('label');
+        label.textContent = partName;
+        wrapper.appendChild(label);
+
+        const select = document.createElement('select');
+        select.className = 'variant-select';
+        select.dataset.part = partName;
+
+        const current = (module.params.parts && module.params.parts[partName]) || partManifest.default;
+
+        for (const [vName, vDef] of Object.entries(partManifest.variants)) {
+            const opt = document.createElement('option');
+            opt.value = vName;
+            opt.textContent = vDef.displayName || vName;
+            if (vName === current) opt.selected = true;
+            select.appendChild(opt);
+        }
+
+        select.addEventListener('change', (e) => {
+            module.params.parts = { ...(module.params.parts || {}), [partName]: e.target.value };
+            module.update();
+            if (this.builder.storage) this.builder.storage.autoSave();
+        });
+
+        wrapper.appendChild(select);
+        return wrapper;
+    }
+
     hideModule() {
         this.currentModule = null;
+        // Drop any in-flight variant render so the next selection starts clean.
+        this._renderToken++;
+        const variantContainer = document.getElementById('part-variants');
+        if (variantContainer) variantContainer.innerHTML = '';
         document.getElementById('no-selection').style.display = 'block';
         document.getElementById('module-properties').style.display = 'none';
     }

@@ -1,0 +1,17 @@
+{
+    "parts": {
+        "main": {
+            "default": "Power_Module",
+            "variants": {
+                "Power_Module": {
+                    "displayName": "Classic Tank",
+                    "thumbnail": "power_classic.png"
+                },
+                "Power_Module_red": {
+                    "displayName": "Extra Tank",
+                    "thumbnail": "Power_red.png"
+                }
+            }
+        }
+    }
+}

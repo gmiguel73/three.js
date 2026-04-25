@@ -15,7 +15,7 @@ export class Wing extends ShipModule {
         this.build();
     }
     
-    build() {
+    buildProcedural() {
         const { width, height, depth, color } = this.params;
         
         // Main wing surface - tapered

@@ -15,7 +15,7 @@ export class Cockpit extends ShipModule {
         this.build();
     }
     
-    build() {
+    buildProcedural() {
         const { width, height, depth, color } = this.params;
         
         // Main cockpit body - cone shape

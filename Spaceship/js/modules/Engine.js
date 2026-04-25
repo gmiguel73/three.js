@@ -15,7 +15,7 @@ export class Engine extends ShipModule {
         this.build();
     }
     
-    build() {
+    buildProcedural() {
         const { width, height, depth, color } = this.params;
         
         // Main engine housing

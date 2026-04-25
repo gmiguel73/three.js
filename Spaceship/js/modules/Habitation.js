@@ -15,7 +15,7 @@ export class Habitation extends ShipModule {
         this.build();
     }
     
-    build() {
+    buildProcedural() {
         const { width, height, depth, color } = this.params;
         
         const material = new THREE.MeshStandardMaterial({
