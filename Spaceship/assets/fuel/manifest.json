@@ -1,0 +1,13 @@
+{
+    "parts": {
+        "main": {
+            "default": "TODO_VARIANT",
+            "variants": {
+                "TODO_VARIANT": {
+                    "displayName": "TODO",
+                    "thumbnail": "todo.png"
+                }
+            }
+        }
+    }
+}
